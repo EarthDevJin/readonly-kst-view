@@ -198,7 +198,9 @@ window.addEventListener('DOMContentLoaded', async () => {
 
   // 로그인 폼 채우기
   const storedEmail = safeGetLocalStorage('email', '');
-  if (el('email')) el('email').value = storedEmail;
+  if (el('email') && storedEmail) {
+    el('email').value = storedEmail;
+  }
 
   // 이미 세션이 있으면 바로 뷰어 표시
   try {
