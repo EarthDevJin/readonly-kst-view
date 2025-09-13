@@ -23,6 +23,19 @@ function on(id, evt, handler) {
 function setError(msg) { el('err').textContent = msg || ''; }
 function setStatus(msg) { el('loginStatus').textContent = msg || ''; }
 
+function debugLog(label, value) {
+  try { console.log(label, value); } catch (_) {}
+}
+
+function renderNoRows(tableId) {
+  const tbody = el(tableId).querySelector('tbody');
+  if (!tbody) return;
+  const tr = document.createElement('tr');
+  const thCount = el(tableId).querySelectorAll('thead th').length || 1;
+  tr.innerHTML = `<td colspan="${thCount}" style="color:#666;text-align:center">No rows</td>`;
+  tbody.appendChild(tr);
+}
+
 async function ensureClient() {
   if (supabase) return supabase;
   const url = (safeGetLocalStorage('spbUrl', DEFAULT_SPB_URL) || '').trim();
@@ -126,6 +139,7 @@ async function loadRuns() {
       .limit(200)
       .order('occurred_at_kst', { ascending: false });
     if (error) throw error;
+    debugLog('runs rows', (data||[]).length);
     const tbody = el('tblRuns').querySelector('tbody');
     tbody.innerHTML = '';
     (data || []).forEach(row => {
@@ -137,7 +151,9 @@ async function loadRuns() {
       `;
       tbody.appendChild(tr);
     });
+    if (!data || data.length === 0) renderNoRows('tblRuns');
   } catch (e) {
+    debugLog('runs error', e);
     setError(e.message || String(e));
   }
 }
@@ -177,6 +193,7 @@ async function loadStatsDaily() {
       .limit(200)
       .order('day_kst', { ascending: false });
     if (error) throw error;
+    debugLog('daily rows', (data||[]).length);
     const tbody = el('tblStatsDaily').querySelector('tbody');
     tbody.innerHTML = '';
     (data || []).forEach(row => {
@@ -193,7 +210,9 @@ async function loadStatsDaily() {
       `;
       tbody.appendChild(tr);
     });
+    if (!data || data.length === 0) renderNoRows('tblStatsDaily');
   } catch (e) {
+    debugLog('daily error', e);
     setError(e.message || String(e));
   }
 }
@@ -258,6 +277,7 @@ window.addEventListener('DOMContentLoaded', async () => {
         .order('year', { ascending: false })
         .order('month', { ascending: false });
       if (error) throw error;
+      debugLog('monthly rows', (data||[]).length);
       const tbody = el('tblStatsMonthly').querySelector('tbody');
       tbody.innerHTML = '';
       (data || []).forEach(row => {
@@ -275,7 +295,9 @@ window.addEventListener('DOMContentLoaded', async () => {
         `;
         tbody.appendChild(tr);
       });
+      if (!data || data.length === 0) renderNoRows('tblStatsMonthly');
     } catch (e) {
+      debugLog('monthly error', e);
       setError(e.message || String(e));
     }
   });
