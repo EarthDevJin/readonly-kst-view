@@ -15,6 +15,11 @@ function safeSetLocalStorage(key, value) {
 
 function el(id) { return document.getElementById(id); }
 
+function on(id, evt, handler) {
+  const node = el(id);
+  if (node) node.addEventListener(evt, handler);
+}
+
 function setError(msg) { el('err').textContent = msg || ''; }
 function setStatus(msg) { el('loginStatus').textContent = msg || ''; }
 
@@ -225,11 +230,10 @@ window.addEventListener('DOMContentLoaded', async () => {
     }
   } catch (_) { /* ignore */ }
 
-  el('btnLogin').addEventListener('click', login);
-  el('btnLoadRuns').addEventListener('click', loadRuns);
-  el('btnLoadIpDaily').addEventListener('click', loadIpDaily);
-  el('btnLoadStatsDaily').addEventListener('click', loadStatsDaily);
-  el('btnLoadStatsMonthly').addEventListener('click', async () => {
+  on('btnLogin', 'click', login);
+  on('btnLoadRuns', 'click', loadRuns);
+  on('btnLoadStatsDaily', 'click', loadStatsDaily);
+  on('btnLoadStatsMonthly', 'click', async () => {
     try {
       setError('');
       const client = await ensureClient();
