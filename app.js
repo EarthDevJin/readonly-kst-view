@@ -205,9 +205,23 @@ window.addEventListener('DOMContentLoaded', async () => {
     const urlFromQuery = params.get('url');
     const keyFromQuery = params.get('key');
     const emailFromQuery = params.get('email');
+    const logoutFlag = params.get('logout');
     if (urlFromQuery) safeSetLocalStorage('spbUrl', urlFromQuery);
     if (keyFromQuery) safeSetLocalStorage('anonKey', keyFromQuery);
     if (emailFromQuery) safeSetLocalStorage('email', emailFromQuery);
+    // 강제 로그아웃: ?logout=1
+    if (logoutFlag === '1') {
+      try {
+        const client = await ensureClient();
+        await client.auth.signOut();
+        const viewer = document.getElementById('viewer');
+        const loginCard = document.getElementById('loginCard');
+        if (viewer && loginCard) {
+          viewer.classList.add('hidden');
+          loginCard.classList.remove('hidden');
+        }
+      } catch (_) { /* ignore */ }
+    }
   } catch (_) { /* ignore */ }
 
   // 로그인 폼 채우기
