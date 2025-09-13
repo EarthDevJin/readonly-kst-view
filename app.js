@@ -3,7 +3,7 @@ let supabase = null;
 // 기본 Supabase URL/ANON KEY.
 // ANON KEY는 공개키이므로 정적 웹에 포함해도 됩니다. 필요 시 교체하세요.
 const DEFAULT_SPB_URL = 'https://shwvdqauqnvtodmismjv.supabase.co';
-const DEFAULT_ANON_KEY = '';
+const DEFAULT_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InNod3ZkcWF1cW52dG9kbWlzbWp2Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NDcxMzg2NzMsImV4cCI6MjA2MjcxNDY3M30.cF-PfTTY-IPnwqpCklmOIGSIFEgs9kLTQtH63Qm23xU';
 
 function safeGetLocalStorage(key, fallback = '') {
   try { return window.localStorage.getItem(key) || fallback; } catch (_) { return fallback; }
@@ -47,7 +47,16 @@ async function login() {
       loginCard.classList.add('hidden');
     }
   } catch (e) {
-    setError(e.message || String(e));
+    const raw = (e && e.message) ? e.message : String(e);
+    if (/Invalid login credentials/i.test(raw)) {
+      setError('이메일 또는 비밀번호를 확인하세요.');
+    } else if (/Email not confirmed/i.test(raw)) {
+      setError('이메일 인증이 필요합니다. 관리자에게 문의하세요.');
+    } else if (/Supabase URL\/Anon Key 미설정/.test(raw)) {
+      setError('시스템 설정이 누락되었습니다. 관리자에게 문의하세요.');
+    } else {
+      setError(raw);
+    }
   }
 }
 
