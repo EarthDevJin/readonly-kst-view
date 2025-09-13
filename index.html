@@ -3,104 +3,118 @@
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <title>Read-only KST Views</title>
+    <title>Dashboard</title>
     <style>
-      body { font-family: Arial, sans-serif; margin: 24px; color: #222; }
-      input, button { padding: 8px; margin: 4px 0; }
-      table { border-collapse: collapse; width: 100%; margin-top: 16px; }
+      body { font-family: Arial, sans-serif; margin: 16px; color: #222; }
+      input, button { padding: 10px; margin: 6px 0; width: 100%; box-sizing: border-box; }
+      table { border-collapse: collapse; width: 100%; margin-top: 12px; }
       th, td { border: 1px solid #ddd; padding: 8px; font-size: 12px; }
       th { background: #f5f5f5; text-align: left; }
-      .card { border: 1px solid #ddd; padding: 16px; margin-bottom: 24px; border-radius: 8px; }
-      .row { display: flex; gap: 16px; }
+      .card { border: 1px solid #ddd; padding: 16px; margin-bottom: 16px; border-radius: 8px; background: #fff; }
+      .row { display: flex; gap: 16px; flex-wrap: wrap; }
       .row > div { flex: 1; }
       .small { font-size: 12px; color: #666; }
       .error { color: #b00020; }
+      .hidden { display: none; }
+      .table-wrap { width: 100%; overflow-x: auto; }
+
+      @media (max-width: 640px) {
+        body { margin: 12px; }
+        th, td { font-size: 11px; padding: 6px; }
+        .row { flex-direction: column; gap: 12px; }
+        .card { padding: 12px; }
+      }
     </style>
     <script src="https://esm.sh/@supabase/supabase-js@2"></script>
     <script defer src="app.js"></script>
   </head>
   <body>
-    <h1>Read-only KST Views</h1>
-    <div class="card">
-      <h3>환경설정</h3>
+    <div id="loginCard" class="card">
       <div>
-        <label>Supabase URL</label><br />
-        <input id="spbUrl" type="text" placeholder="https://YOUR_PROJECT_REF.supabase.co" style="width: 100%" />
+        <label>Email</label>
+        <input id="email" type="email" placeholder="user@example.com" />
       </div>
       <div>
-        <label>Anon Key</label><br />
-        <input id="anonKey" type="password" placeholder="ANON_PUBLIC_KEY" style="width: 100%" />
-      </div>
-      <div class="row">
-        <div>
-          <label>Email</label><br />
-          <input id="email" type="email" placeholder="user@example.com" style="width: 100%" />
-        </div>
-        <div>
-          <label>Password</label><br />
-          <input id="password" type="password" placeholder="••••••••" style="width: 100%" />
-        </div>
+        <label>Password</label>
+        <input id="password" type="password" placeholder="••••••••" />
       </div>
       <button id="btnLogin">로그인</button>
-      <span id="loginStatus" class="small"></span>
+      <div class="small" id="loginStatus"></div>
       <div id="err" class="error small"></div>
     </div>
 
-    <div class="row">
-      <div class="card">
-        <h3>프로그램 실행 로그 (vw_program_runs_kst)</h3>
-        <button id="btnLoadRuns">조회</button>
-        <table id="tblRuns">
-          <thead>
-            <tr>
-              <th>username</th>
-              <th>occurred_at_kst</th>
-              <th>ip_address</th>
-            </tr>
-          </thead>
-          <tbody></tbody>
-        </table>
+    <div id="viewer" class="hidden">
+      <div class="row">
+        <div class="card">
+          <div class="row">
+            <div style="flex:1">
+              <button id="btnLoadRuns">프로그램 실행 로그 조회</button>
+            </div>
+            <div style="flex:1">
+              <button id="btnLoadStatsDaily">일별 통계 조회</button>
+            </div>
+            <div style="flex:1">
+              <button id="btnLoadStatsMonthly">월별 통계 조회</button>
+            </div>
+          </div>
+        </div>
       </div>
-      <div class="card">
-        <h3>일별 통계 (vw_device_stats_daily_kst)</h3>
-        <button id="btnLoadStatsDaily">조회</button>
-        <table id="tblStatsDaily">
-          <thead>
-            <tr>
-              <th>username</th>
-              <th>day_kst</th>
-              <th>dm_count</th>
-              <th>invite_success</th>
-              <th>invite_failed</th>
-              <th>contact_total</th>
-              <th>contact_success</th>
-              <th>contact_failed</th>
-            </tr>
-          </thead>
-          <tbody></tbody>
-        </table>
-      </div>
-    </div>
 
-    <div class="card">
-      <h3>월별 통계 (vw_device_stats_monthly_username)</h3>
-      <button id="btnLoadStatsMonthly">조회</button>
-      <table id="tblStatsMonthly">
-        <thead>
-          <tr>
-            <th>year</th>
-            <th>month</th>
-            <th>username</th>
-            <th>dm_count</th>
-            <th>invite_success</th>
-            <th>invite_failed</th>
-            <th>contact_total</th>
-            <th>contact_success</th>
-            <th>contact_failed</th>
-          </tr>
-        </thead>
-        <tbody></tbody>
-      </table>
+      <div class="card">
+        <div class="table-wrap">
+          <table id="tblRuns">
+            <thead>
+              <tr>
+                <th>username</th>
+                <th>occurred_at_kst</th>
+                <th>ip_address</th>
+              </tr>
+            </thead>
+            <tbody></tbody>
+          </table>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="table-wrap">
+          <table id="tblStatsDaily">
+            <thead>
+              <tr>
+                <th>username</th>
+                <th>day_kst</th>
+                <th>dm_count</th>
+                <th>invite_success</th>
+                <th>invite_failed</th>
+                <th>contact_total</th>
+                <th>contact_success</th>
+                <th>contact_failed</th>
+              </tr>
+            </thead>
+            <tbody></tbody>
+          </table>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="table-wrap">
+          <table id="tblStatsMonthly">
+            <thead>
+              <tr>
+                <th>year</th>
+                <th>month</th>
+                <th>username</th>
+                <th>dm_count</th>
+                <th>invite_success</th>
+                <th>invite_failed</th>
+                <th>contact_total</th>
+                <th>contact_success</th>
+                <th>contact_failed</th>
+              </tr>
+            </thead>
+            <tbody></tbody>
+          </table>
+        </div>
+      </div>
     </div>
   </body>
   </html>

@@ -1,5 +1,18 @@
 let supabase = null;
 
+// 기본 Supabase URL/ANON KEY.
+// ANON KEY는 공개키이므로 정적 웹에 포함해도 됩니다. 필요 시 교체하세요.
+const DEFAULT_SPB_URL = 'https://shwvdqauqnvtodmismjv.supabase.co';
+const DEFAULT_ANON_KEY = '';
+
+function safeGetLocalStorage(key, fallback = '') {
+  try { return window.localStorage.getItem(key) || fallback; } catch (_) { return fallback; }
+}
+
+function safeSetLocalStorage(key, value) {
+  try { window.localStorage.setItem(key, value); } catch (_) { /* ignore */ }
+}
+
 function el(id) { return document.getElementById(id); }
 
 function setError(msg) { el('err').textContent = msg || ''; }
@@ -7,9 +20,9 @@ function setStatus(msg) { el('loginStatus').textContent = msg || ''; }
 
 async function ensureClient() {
   if (supabase) return supabase;
-  const url = el('spbUrl').value.trim();
-  const key = el('anonKey').value.trim();
-  if (!url || !key) throw new Error('Supabase URL/Anon Key를 입력하세요.');
+  const url = (safeGetLocalStorage('spbUrl', DEFAULT_SPB_URL) || '').trim();
+  const key = (safeGetLocalStorage('anonKey', DEFAULT_ANON_KEY) || '').trim();
+  if (!url || !key) throw new Error('관리자 설정이 필요합니다: Supabase URL/Anon Key 미설정');
   supabase = window.supabase.createClient(url, key);
   return supabase;
 }
@@ -23,7 +36,16 @@ async function login() {
     if (!email || !password) throw new Error('이메일/비밀번호를 입력하세요.');
     const { data, error } = await client.auth.signInWithPassword({ email, password });
     if (error) throw error;
+    // 이메일도 저장하여 다음 방문 시 자동 채움
+    safeSetLocalStorage('email', email);
     setStatus('로그인 성공');
+    // 로그인 성공 시 뷰어 표시
+    const viewer = document.getElementById('viewer');
+    const loginCard = document.getElementById('loginCard');
+    if (viewer && loginCard) {
+      viewer.classList.remove('hidden');
+      loginCard.classList.add('hidden');
+    }
   } catch (e) {
     setError(e.message || String(e));
   }
@@ -162,7 +184,36 @@ async function loadStatsDaily() {
   }
 }
 
-window.addEventListener('DOMContentLoaded', () => {
+window.addEventListener('DOMContentLoaded', async () => {
+  // URL 쿼리 파라미터로 기본값 주입 가능: ?url=...&key=...&email=...
+  try {
+    const params = new URLSearchParams(window.location.search);
+    const urlFromQuery = params.get('url');
+    const keyFromQuery = params.get('key');
+    const emailFromQuery = params.get('email');
+    if (urlFromQuery) safeSetLocalStorage('spbUrl', urlFromQuery);
+    if (keyFromQuery) safeSetLocalStorage('anonKey', keyFromQuery);
+    if (emailFromQuery) safeSetLocalStorage('email', emailFromQuery);
+  } catch (_) { /* ignore */ }
+
+  // 로그인 폼 채우기
+  const storedEmail = safeGetLocalStorage('email', '');
+  if (el('email')) el('email').value = storedEmail;
+
+  // 이미 세션이 있으면 바로 뷰어 표시
+  try {
+    const client = await ensureClient();
+    const { data } = await client.auth.getSession();
+    if (data && data.session) {
+      const viewer = document.getElementById('viewer');
+      const loginCard = document.getElementById('loginCard');
+      if (viewer && loginCard) {
+        viewer.classList.remove('hidden');
+        loginCard.classList.add('hidden');
+      }
+    }
+  } catch (_) { /* ignore */ }
+
   el('btnLogin').addEventListener('click', login);
   el('btnLoadRuns').addEventListener('click', loadRuns);
   el('btnLoadIpDaily').addEventListener('click', loadIpDaily);
