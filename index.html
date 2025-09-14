@@ -6,7 +6,7 @@
     <title>Dashboard</title>
     <meta http-equiv="Referrer-Policy" content="no-referrer" />
     <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' https://cdn.jsdelivr.net https://cdn.jsdelivr.net/npm/@supabase; connect-src https://shwvdqauqnvtodmismjv.supabase.co; style-src 'self' 'unsafe-inline'; img-src 'self' data:;" />
-    <link rel="stylesheet" href="styles.css?v=1" />
+    <link rel="stylesheet" href="styles.css?v=2" />
     <!-- Use UMD build to expose window.supabase for createClient() -->
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.js"></script>
     <script defer src="app.js?v=10"></script>
@@ -59,9 +59,9 @@
             <button id="btnLoadStatsDaily" class="btn">일별 통계 조회</button>
             <button id="btnLoadStatsMonthly" class="btn">월별 통계 조회</button>
           </div>
-          <div class="row between small muted">
-            <span id="pageInfo"></span>
-            <div class="row gap">
+          <div class="row end small">
+            <div class="row gap pager">
+              <span id="pageInfo" class="page-info"></span>
               <button id="prevPage" class="btn">Prev</button>
               <button id="nextPage" class="btn">Next</button>
             </div>
