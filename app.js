@@ -1,4 +1,6 @@
 let supabase = null;
+let currentPage = 1;
+let lastQuery = null; // 'runs' | 'daily' | 'ipdaily' | 'monthly'
 
 // 기본 Supabase URL/ANON KEY.
 // ANON KEY는 공개키이므로 정적 웹에 포함해도 됩니다. 필요 시 교체하세요.
@@ -34,6 +36,24 @@ function renderNoRows(tableId) {
   const thCount = el(tableId).querySelectorAll('thead th').length || 1;
   tr.innerHTML = `<td colspan="${thCount}" style="color:#666;text-align:center">No rows</td>`;
   tbody.appendChild(tr);
+}
+
+function getPageSize() {
+  const v = parseInt((el('pageSize')?.value || '200'), 10);
+  return isNaN(v) ? 200 : Math.max(10, Math.min(500, v));
+}
+
+function getFilters() {
+  const uname = (el('filterUsername')?.value || '').trim();
+  const start = (el('filterStart')?.value || '').trim(); // YYYY-MM-DD (KST)
+  const end = (el('filterEnd')?.value || '').trim();
+  return { uname, start, end };
+}
+
+function updatePageInfo(rows) {
+  const info = el('pageInfo');
+  if (!info) return;
+  info.textContent = `page ${currentPage}, rows ${rows}`;
 }
 
 async function ensureClient() {
@@ -133,11 +153,18 @@ async function loadRuns() {
   try {
     setError('');
     const client = await ensureClient();
-    const { data, error } = await client
+    const { uname, start, end } = getFilters();
+    const limit = getPageSize();
+    const offset = (currentPage - 1) * limit;
+    let q = client
       .from('vw_program_runs_kst')
       .select('username, occurred_at_kst, ip_address')
-      .limit(200)
-      .order('occurred_at_kst', { ascending: false });
+      .order('occurred_at_kst', { ascending: false })
+      .range(offset, offset + limit - 1);
+    if (uname) q = q.ilike('username', `%${uname}%`);
+    if (start) q = q.gte('occurred_at_kst', `${start} 00:00:00+09`);
+    if (end) q = q.lte('occurred_at_kst', `${end} 23:59:59+09`);
+    const { data, error } = await q;
     if (error) throw error;
     debugLog('runs rows', (data||[]).length);
     const tbody = el('tblRuns').querySelector('tbody');
@@ -152,6 +179,8 @@ async function loadRuns() {
       tbody.appendChild(tr);
     });
     if (!data || data.length === 0) renderNoRows('tblRuns');
+    updatePageInfo((data||[]).length);
+    lastQuery = 'runs';
   } catch (e) {
     debugLog('runs error', e);
     setError(e.message || String(e));
@@ -161,11 +190,18 @@ async function loadIpDaily() {
   try {
     setError('');
     const client = await ensureClient();
-    const { data, error } = await client
+    const { uname, start, end } = getFilters();
+    const limit = getPageSize();
+    const offset = (currentPage - 1) * limit;
+    let q = client
       .from('vw_ip_access_daily_kst')
       .select('username, day_kst, active_rows')
-      .limit(200)
-      .order('day_kst', { ascending: false });
+      .order('day_kst', { ascending: false })
+      .range(offset, offset + limit - 1);
+    if (uname) q = q.ilike('username', `%${uname}%`);
+    if (start) q = q.gte('day_kst', start);
+    if (end) q = q.lte('day_kst', end);
+    const { data, error } = await q;
     if (error) throw error;
     const tbody = el('tblIpDaily').querySelector('tbody');
     tbody.innerHTML = '';
@@ -178,6 +214,9 @@ async function loadIpDaily() {
       `;
       tbody.appendChild(tr);
     });
+    if (!data || data.length === 0) renderNoRows('tblIpDaily');
+    updatePageInfo((data||[]).length);
+    lastQuery = 'ipdaily';
   } catch (e) {
     setError(e.message || String(e));
   }
@@ -187,11 +226,18 @@ async function loadStatsDaily() {
   try {
     setError('');
     const client = await ensureClient();
-    const { data, error } = await client
+    const { uname, start, end } = getFilters();
+    const limit = getPageSize();
+    const offset = (currentPage - 1) * limit;
+    let q = client
       .from('vw_device_stats_daily_kst')
       .select('username, day_kst, dm_count, invite_success, invite_failed, contact_total, contact_success, contact_failed')
-      .limit(200)
-      .order('day_kst', { ascending: false });
+      .order('day_kst', { ascending: false })
+      .range(offset, offset + limit - 1);
+    if (uname) q = q.ilike('username', `%${uname}%`);
+    if (start) q = q.gte('day_kst', start);
+    if (end) q = q.lte('day_kst', end);
+    const { data, error } = await q;
     if (error) throw error;
     debugLog('daily rows', (data||[]).length);
     const tbody = el('tblStatsDaily').querySelector('tbody');
@@ -211,6 +257,8 @@ async function loadStatsDaily() {
       tbody.appendChild(tr);
     });
     if (!data || data.length === 0) renderNoRows('tblStatsDaily');
+    updatePageInfo((data||[]).length);
+    lastQuery = 'daily';
   } catch (e) {
     debugLog('daily error', e);
     setError(e.message || String(e));
@@ -270,12 +318,17 @@ window.addEventListener('DOMContentLoaded', async () => {
     try {
       setError('');
       const client = await ensureClient();
-      const { data, error } = await client
+      const { uname, start, end } = getFilters();
+      const limit = getPageSize();
+      const offset = (currentPage - 1) * limit;
+      let q = client
         .from('vw_device_stats_monthly_username')
         .select('year, month, username, dm_count, invite_success, invite_failed, contact_total, contact_success, contact_failed')
-        .limit(200)
         .order('year', { ascending: false })
-        .order('month', { ascending: false });
+        .order('month', { ascending: false })
+        .range(offset, offset + limit - 1);
+      if (uname) q = q.ilike('username', `%${uname}%`);
+      const { data, error } = await q;
       if (error) throw error;
       debugLog('monthly rows', (data||[]).length);
       const tbody = el('tblStatsMonthly').querySelector('tbody');
@@ -296,11 +349,27 @@ window.addEventListener('DOMContentLoaded', async () => {
         tbody.appendChild(tr);
       });
       if (!data || data.length === 0) renderNoRows('tblStatsMonthly');
+      updatePageInfo((data||[]).length);
+      lastQuery = 'monthly';
     } catch (e) {
       debugLog('monthly error', e);
       setError(e.message || String(e));
     }
   });
+  // pagination + filters
+  on('prevPage', 'click', () => { if (currentPage > 1) { currentPage -= 1; rerunLast(); } });
+  on('nextPage', 'click', () => { currentPage += 1; rerunLast(); });
+  on('pageSize', 'change', () => { currentPage = 1; rerunLast(); });
+  on('filterUsername', 'change', () => { currentPage = 1; rerunLast(); });
+  on('filterStart', 'change', () => { currentPage = 1; rerunLast(); });
+  on('filterEnd', 'change', () => { currentPage = 1; rerunLast(); });
 });
+
+function rerunLast() {
+  if (lastQuery === 'runs') return loadRuns();
+  if (lastQuery === 'daily') return loadStatsDaily();
+  if (lastQuery === 'ipdaily') return loadIpDaily();
+  if (lastQuery === 'monthly') return (document.getElementById('btnLoadStatsMonthly')?.click());
+}
 
 
