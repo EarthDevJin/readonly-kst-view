@@ -4,16 +4,19 @@
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <title>Dashboard</title>
+    <meta http-equiv="Referrer-Policy" content="no-referrer" />
+    <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' https://cdn.jsdelivr.net https://cdn.jsdelivr.net/npm/@supabase; connect-src https://shwvdqauqnvtodmismjv.supabase.co; style-src 'self' 'unsafe-inline'; img-src 'self' data:;" />
     <link rel="stylesheet" href="styles.css?v=1" />
     <!-- Use UMD build to expose window.supabase for createClient() -->
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.js"></script>
-    <script defer src="app.js?v=9"></script>
+    <script defer src="app.js?v=10"></script>
   </head>
   <body>
     <div class="container">
       <header class="header">
-        <h1 class="title">Read-only Dashboard</h1>
+        <h1 class="title">Dashboard</h1>
       </header>
+      <div class="small muted" id="health"></div>
 
       <section id="loginCard" class="card">
         <div class="field">
@@ -33,10 +36,35 @@
 
       <section id="viewer" class="hidden">
         <div class="card">
+          <div class="row gap filters">
+            <div class="field">
+              <label>Username</label>
+              <input id="filterUsername" type="text" placeholder="검색어(포함)" />
+            </div>
+            <div class="field">
+              <label for="filterStart">Start</label>
+              <input id="filterStart" name="filterStart" type="date" aria-label="Start date (KST)" />
+            </div>
+            <div class="field">
+              <label for="filterEnd">End</label>
+              <input id="filterEnd" name="filterEnd" type="date" aria-label="End date (KST)" />
+            </div>
+            <div class="field">
+              <label for="pageSize">Page size</label>
+              <input id="pageSize" name="pageSize" type="number" min="10" max="500" value="200" aria-label="Page size" />
+            </div>
+          </div>
           <div class="row gap">
             <button id="btnLoadRuns" class="btn">프로그램 실행 로그 조회</button>
             <button id="btnLoadStatsDaily" class="btn">일별 통계 조회</button>
             <button id="btnLoadStatsMonthly" class="btn">월별 통계 조회</button>
+          </div>
+          <div class="row between small muted">
+            <span id="pageInfo"></span>
+            <div class="row gap">
+              <button id="prevPage" class="btn">Prev</button>
+              <button id="nextPage" class="btn">Next</button>
+            </div>
           </div>
         </div>
 
@@ -45,9 +73,9 @@
             <table id="tblRuns" class="table">
               <thead>
                 <tr>
-                  <th>username</th>
-                  <th>occurred_at_kst</th>
-                  <th>ip_address</th>
+                  <th class="sortable" data-col="username" aria-sort="none" tabindex="0">username</th>
+                  <th class="sortable" data-col="occurred_at_kst" aria-sort="none" tabindex="0">occurred_at_kst</th>
+                  <th class="sortable" data-col="ip_address" aria-sort="none" tabindex="0">ip_address</th>
                 </tr>
               </thead>
               <tbody></tbody>
@@ -60,14 +88,14 @@
             <table id="tblStatsDaily" class="table">
               <thead>
                 <tr>
-                  <th>username</th>
-                  <th>day_kst</th>
-                  <th>dm_count</th>
-                  <th>invite_success</th>
-                  <th>invite_failed</th>
-                  <th>contact_total</th>
-                  <th>contact_success</th>
-                  <th>contact_failed</th>
+                  <th class="sortable" data-col="username" aria-sort="none" tabindex="0">username</th>
+                  <th class="sortable" data-col="day_kst" aria-sort="none" tabindex="0">day_kst</th>
+                  <th class="sortable" data-col="dm_count" aria-sort="none" tabindex="0">dm_count</th>
+                  <th class="sortable" data-col="invite_success" aria-sort="none" tabindex="0">invite_success</th>
+                  <th class="sortable" data-col="invite_failed" aria-sort="none" tabindex="0">invite_failed</th>
+                  <th class="sortable" data-col="contact_total" aria-sort="none" tabindex="0">contact_total</th>
+                  <th class="sortable" data-col="contact_success" aria-sort="none" tabindex="0">contact_success</th>
+                  <th class="sortable" data-col="contact_failed" aria-sort="none" tabindex="0">contact_failed</th>
                 </tr>
               </thead>
               <tbody></tbody>
@@ -80,26 +108,33 @@
             <table id="tblStatsMonthly" class="table">
               <thead>
                 <tr>
-                  <th>year</th>
-                  <th>month</th>
-                  <th>username</th>
-                  <th>dm_count</th>
-                  <th>invite_success</th>
-                  <th>invite_failed</th>
-                  <th>contact_total</th>
-                  <th>contact_success</th>
-                  <th>contact_failed</th>
+                  <th class="sortable" data-col="year" aria-sort="none" tabindex="0">year</th>
+                  <th class="sortable" data-col="month" aria-sort="none" tabindex="0">month</th>
+                  <th class="sortable" data-col="username" aria-sort="none" tabindex="0">username</th>
+                  <th class="sortable" data-col="dm_count" aria-sort="none" tabindex="0">dm_count</th>
+                  <th class="sortable" data-col="invite_success" aria-sort="none" tabindex="0">invite_success</th>
+                  <th class="sortable" data-col="invite_failed" aria-sort="none" tabindex="0">invite_failed</th>
+                  <th class="sortable" data-col="contact_total" aria-sort="none" tabindex="0">contact_total</th>
+                  <th class="sortable" data-col="contact_success" aria-sort="none" tabindex="0">contact_success</th>
+                  <th class="sortable" data-col="contact_failed" aria-sort="none" tabindex="0">contact_failed</th>
                 </tr>
               </thead>
               <tbody></tbody>
             </table>
           </div>
         </div>
+        
       </section>
 
       <footer class="footer">
-        <span class="muted">KST 표시(저장은 UTC)</span>
+        <span class="muted">조회 버튼 눌러야 최신 정보로 업데이트 됨</span>
       </footer>
+      
+      <!-- Loading Spinner Overlay -->
+      <div id="spinner" class="spinner hidden" role="status" aria-live="polite">
+        <div class="loader"></div>
+        <div class="small muted">Loading...</div>
+      </div>
     </div>
   </body>
   </html>

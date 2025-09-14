@@ -1,6 +1,7 @@
 let supabase = null;
 let currentPage = 1;
 let lastQuery = null; // 'runs' | 'daily' | 'ipdaily' | 'monthly'
+let sortState = { runs: { col: 'occurred_at_kst', asc: false }, daily: { col: 'day_kst', asc: false }, monthly: { col: 'year', asc: false, col2: 'month', asc2: false } };
 
 // 기본 Supabase URL/ANON KEY.
 // ANON KEY는 공개키이므로 정적 웹에 포함해도 됩니다. 필요 시 교체하세요.
@@ -24,6 +25,24 @@ function on(id, evt, handler) {
 
 function setError(msg) { el('err').textContent = msg || ''; }
 function setStatus(msg) { el('loginStatus').textContent = msg || ''; }
+
+function showSpinner(show) {
+  const s = el('spinner');
+  if (!s) return;
+  if (show) s.classList.remove('hidden'); else s.classList.add('hidden');
+}
+
+function setAriaSort(tableId, activeCol, asc) {
+  const headers = el(tableId)?.querySelectorAll('thead th.sortable') || [];
+  headers.forEach(th => {
+    const col = th.getAttribute('data-col');
+    if (col === activeCol) {
+      th.setAttribute('aria-sort', asc ? 'ascending' : 'descending');
+    } else {
+      th.setAttribute('aria-sort', 'none');
+    }
+  });
+}
 
 function debugLog(label, value) {
   try { console.log(label, value); } catch (_) {}
@@ -152,14 +171,16 @@ async function loadLogs() {
 async function loadRuns() {
   try {
     setError('');
+    showSpinner(true);
     const client = await ensureClient();
     const { uname, start, end } = getFilters();
     const limit = getPageSize();
     const offset = (currentPage - 1) * limit;
+    const s = sortState.runs;
     let q = client
       .from('vw_program_runs_kst')
       .select('username, occurred_at_kst, ip_address')
-      .order('occurred_at_kst', { ascending: false })
+      .order(s.col, { ascending: !!s.asc })
       .range(offset, offset + limit - 1);
     if (uname) q = q.ilike('username', `%${uname}%`);
     if (start) q = q.gte('occurred_at_kst', `${start} 00:00:00+09`);
@@ -184,11 +205,14 @@ async function loadRuns() {
   } catch (e) {
     debugLog('runs error', e);
     setError(e.message || String(e));
+  } finally {
+    showSpinner(false);
   }
 }
 async function loadIpDaily() {
   try {
     setError('');
+    showSpinner(true);
     const client = await ensureClient();
     const { uname, start, end } = getFilters();
     const limit = getPageSize();
@@ -196,7 +220,7 @@ async function loadIpDaily() {
     let q = client
       .from('vw_ip_access_daily_kst')
       .select('username, day_kst, active_rows')
-      .order('day_kst', { ascending: false })
+      .order('day_kst', { ascending: !!(sortState.daily?.col === 'day_kst' ? sortState.daily.asc : false) })
       .range(offset, offset + limit - 1);
     if (uname) q = q.ilike('username', `%${uname}%`);
     if (start) q = q.gte('day_kst', start);
@@ -219,20 +243,24 @@ async function loadIpDaily() {
     lastQuery = 'ipdaily';
   } catch (e) {
     setError(e.message || String(e));
+  } finally {
+    showSpinner(false);
   }
 }
 
 async function loadStatsDaily() {
   try {
     setError('');
+    showSpinner(true);
     const client = await ensureClient();
     const { uname, start, end } = getFilters();
     const limit = getPageSize();
     const offset = (currentPage - 1) * limit;
+    const s = sortState.daily;
     let q = client
       .from('vw_device_stats_daily_kst')
       .select('username, day_kst, dm_count, invite_success, invite_failed, contact_total, contact_success, contact_failed')
-      .order('day_kst', { ascending: false })
+      .order(s.col, { ascending: !!s.asc })
       .range(offset, offset + limit - 1);
     if (uname) q = q.ilike('username', `%${uname}%`);
     if (start) q = q.gte('day_kst', start);
@@ -262,6 +290,8 @@ async function loadStatsDaily() {
   } catch (e) {
     debugLog('daily error', e);
     setError(e.message || String(e));
+  } finally {
+    showSpinner(false);
   }
 }
 
@@ -317,15 +347,17 @@ window.addEventListener('DOMContentLoaded', async () => {
   on('btnLoadStatsMonthly', 'click', async () => {
     try {
       setError('');
+      showSpinner(true);
       const client = await ensureClient();
       const { uname, start, end } = getFilters();
       const limit = getPageSize();
       const offset = (currentPage - 1) * limit;
+      const s = sortState.monthly;
       let q = client
         .from('vw_device_stats_monthly_username')
         .select('year, month, username, dm_count, invite_success, invite_failed, contact_total, contact_success, contact_failed')
-        .order('year', { ascending: false })
-        .order('month', { ascending: false })
+        .order(s.col, { ascending: !!s.asc })
+        .order(s.col2, { ascending: !!s.asc2 })
         .range(offset, offset + limit - 1);
       if (uname) q = q.ilike('username', `%${uname}%`);
       const { data, error } = await q;
@@ -354,6 +386,8 @@ window.addEventListener('DOMContentLoaded', async () => {
     } catch (e) {
       debugLog('monthly error', e);
       setError(e.message || String(e));
+    } finally {
+      showSpinner(false);
     }
   });
   // pagination + filters
@@ -363,6 +397,102 @@ window.addEventListener('DOMContentLoaded', async () => {
   on('filterUsername', 'change', () => { currentPage = 1; rerunLast(); });
   on('filterStart', 'change', () => { currentPage = 1; rerunLast(); });
   on('filterEnd', 'change', () => { currentPage = 1; rerunLast(); });
+
+  // Sorting handlers
+  function attachSortHandlers() {
+    const runsHeaders = el('tblRuns')?.querySelectorAll('thead th.sortable') || [];
+    runsHeaders.forEach(th => th.addEventListener('click', () => {
+      const col = th.getAttribute('data-col');
+      if (!col) return;
+      const s = sortState.runs;
+      s.asc = (s.col === col) ? !s.asc : true; // first click asc
+      s.col = col;
+      updateSortIndicators('tblRuns', col, s.asc);
+      setAriaSort('tblRuns', col, s.asc);
+      currentPage = 1;
+      loadRuns();
+    }));
+    // keyboard support
+    runsHeaders.forEach(th => th.addEventListener('keydown', (e) => {
+      if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); th.click(); }
+    }));
+
+    const dailyHeaders = el('tblStatsDaily')?.querySelectorAll('thead th.sortable') || [];
+    dailyHeaders.forEach(th => th.addEventListener('click', () => {
+      const col = th.getAttribute('data-col');
+      if (!col) return;
+      const s = sortState.daily;
+      s.asc = (s.col === col) ? !s.asc : true;
+      s.col = col;
+      updateSortIndicators('tblStatsDaily', col, s.asc);
+      setAriaSort('tblStatsDaily', col, s.asc);
+      currentPage = 1;
+      loadStatsDaily();
+    }));
+    dailyHeaders.forEach(th => th.addEventListener('keydown', (e) => {
+      if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); th.click(); }
+    }));
+
+    const monthlyHeaders = el('tblStatsMonthly')?.querySelectorAll('thead th.sortable') || [];
+    monthlyHeaders.forEach(th => th.addEventListener('click', () => {
+      const col = th.getAttribute('data-col');
+      if (!col) return;
+      // special: if click year or month, toggle ordering primary/secondary
+      const s = sortState.monthly;
+      if (col === 'year' || col === 'month') {
+        if (s.col === col) {
+          s.asc = !s.asc;
+        } else if (s.col2 === col) {
+          s.asc2 = !s.asc2;
+        } else {
+          // set clicked as primary
+          s.col = col; s.asc = true;
+          s.col2 = (col === 'year') ? 'month' : 'year';
+        }
+      } else {
+        s.col = col; s.asc = true; // default asc for other columns
+      }
+      updateSortIndicators('tblStatsMonthly', s.col, s.asc);
+      setAriaSort('tblStatsMonthly', s.col, s.asc);
+      currentPage = 1;
+      document.getElementById('btnLoadStatsMonthly')?.click();
+    }));
+    monthlyHeaders.forEach(th => th.addEventListener('keydown', (e) => {
+      if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); th.click(); }
+    }));
+  }
+
+  function updateSortIndicators(tableId, activeCol, asc) {
+    const headers = el(tableId)?.querySelectorAll('thead th.sortable') || [];
+    headers.forEach(th => {
+      th.classList.remove('asc', 'desc');
+      if (th.getAttribute('data-col') === activeCol) th.classList.add(asc ? 'asc' : 'desc');
+    });
+  }
+
+  attachSortHandlers();
+  // initial indicators per default sort state
+  updateSortIndicators('tblRuns', sortState.runs.col, sortState.runs.asc);
+  setAriaSort('tblRuns', sortState.runs.col, sortState.runs.asc);
+  updateSortIndicators('tblStatsDaily', sortState.daily.col, sortState.daily.asc);
+  setAriaSort('tblStatsDaily', sortState.daily.col, sortState.daily.asc);
+  updateSortIndicators('tblStatsMonthly', sortState.monthly.col, sortState.monthly.asc);
+  setAriaSort('tblStatsMonthly', sortState.monthly.col, sortState.monthly.asc);
+
+  // Health indicator: latest KST dates
+  try {
+    const client = await ensureClient();
+    const [{ data: runs }, { data: daily }, { data: monthly }] = await Promise.all([
+      client.from('vw_program_runs_kst').select('occurred_at_kst').order('occurred_at_kst', { ascending: false }).limit(1),
+      client.from('vw_device_stats_daily_kst').select('day_kst').order('day_kst', { ascending: false }).limit(1),
+      client.from('vw_device_stats_monthly_username').select('year,month').order('year', { ascending: false }).order('month', { ascending: false }).limit(1),
+    ]);
+    const r = runs && runs[0]?.occurred_at_kst ? String(runs[0].occurred_at_kst).slice(0, 16) : '-';
+    const d = daily && daily[0]?.day_kst ? String(daily[0].day_kst) : '-';
+    const m = monthly && monthly[0] ? `${monthly[0].year}-${String(monthly[0].month).padStart(2, '0')}` : '-';
+    const health = el('health');
+    if (health) health.textContent = `Runs 최신: ${r} · Daily 최신: ${d} · Monthly 최신: ${m}`;
+  } catch (_) { /* ignore */ }
 });
 
 function rerunLast() {
