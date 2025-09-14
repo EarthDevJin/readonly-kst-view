@@ -296,6 +296,8 @@ async function loadStatsDaily() {
 }
 
 window.addEventListener('DOMContentLoaded', async () => {
+  // 초기 상태에서 스피너는 숨김 유지
+  try { showSpinner(false); } catch (_) {}
   // URL 쿼리 파라미터로 기본값 주입 가능: ?url=...&key=...&email=...
   try {
     const params = new URLSearchParams(window.location.search);
@@ -479,7 +481,7 @@ window.addEventListener('DOMContentLoaded', async () => {
   updateSortIndicators('tblStatsMonthly', sortState.monthly.col, sortState.monthly.asc);
   setAriaSort('tblStatsMonthly', sortState.monthly.col, sortState.monthly.asc);
 
-  // Health indicator: latest KST dates
+  // Health indicator: latest KST dates (오류 무시, 스피너 영향 없음)
   try {
     const client = await ensureClient();
     const [{ data: runs }, { data: daily }, { data: monthly }] = await Promise.all([
@@ -492,7 +494,7 @@ window.addEventListener('DOMContentLoaded', async () => {
     const m = monthly && monthly[0] ? `${monthly[0].year}-${String(monthly[0].month).padStart(2, '0')}` : '-';
     const health = el('health');
     if (health) health.textContent = `Runs 최신: ${r} · Daily 최신: ${d} · Monthly 최신: ${m}`;
-  } catch (_) { /* ignore */ }
+  } catch (e) { /* ignore */ }
 });
 
 function rerunLast() {
