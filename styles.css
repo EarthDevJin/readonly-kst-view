@@ -841,26 +841,28 @@ body {
     
     /* 세로 텍스트 헤더 (모바일 전용) */
     .data-table thead th {
-        writing-mode: vertical-rl;
-        text-orientation: upright;
-        height: 100px;
-        padding: 4px 2px;
+        -webkit-writing-mode: vertical-rl;
+        -ms-writing-mode: tb-rl;
+        writing-mode: vertical-rl;  /* 표준 속성은 마지막에 */
+        height: 80px;
+        padding: 8px 2px;
         font-size: 10px;
         white-space: nowrap;
         vertical-align: bottom;
-        letter-spacing: 1px;
-        line-height: 1;
+        text-align: center;
+        transform: rotate(180deg);  /* 텍스트 방향 조정 */
     }
     
     /* 날짜와 이메일은 가로 유지 */
     .data-table thead th:first-child,
     .data-table thead th:nth-child(2) {
-        writing-mode: horizontal-tb;
-        text-orientation: mixed;
+        -webkit-writing-mode: horizontal-tb;
+        -ms-writing-mode: lr-tb;
+        writing-mode: horizontal-tb;  /* 표준 속성은 마지막에 */
+        transform: none;
         height: auto;
-        min-height: 50px;
-        padding: 4px;
-        letter-spacing: normal;
+        min-height: 40px;
+        padding: 8px 4px;
         vertical-align: middle;
         font-size: 10px;
     }
