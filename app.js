@@ -1,507 +1,562 @@
+// Telo Dashboard - Modern UI/UX
 let supabase = null;
-let currentPage = 1;
-let lastQuery = null; // 'runs' | 'daily' | 'ipdaily' | 'monthly'
-let sortState = { runs: { col: 'occurred_at_kst', asc: false }, daily: { col: 'day_kst', asc: false }, monthly: { col: 'year', asc: false, col2: 'month', asc2: false } };
+let currentUser = null;
+let chartInstance = null;
 
-// 기본 Supabase URL/ANON KEY.
-// ANON KEY는 공개키이므로 정적 웹에 포함해도 됩니다. 필요 시 교체하세요.
-const DEFAULT_SPB_URL = 'https://shwvdqauqnvtodmismjv.supabase.co';
-const DEFAULT_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InNod3ZkcWF1cW52dG9kbWlzbWp2Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NDcxMzg2NzMsImV4cCI6MjA2MjcxNDY3M30.cF-PfTTY-IPnwqpCklmOIGSIFEgs9kLTQtH63Qm23xU';
+// Supabase Configuration
+const SUPABASE_URL = 'https://shwvdqauqnvtodmismjv.supabase.co';
+const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InNod3ZkcWF1cW52dG9kbWlzbWp2Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NDcxMzg2NzMsImV4cCI6MjA2MjcxNDY3M30.cF-PfTTY-IPnwqpCklmOIGSIFEgs9kLTQtH63Qm23xU';
 
-function safeGetLocalStorage(key, fallback = '') {
-  try { return window.localStorage.getItem(key) || fallback; } catch (_) { return fallback; }
-}
-
-function safeSetLocalStorage(key, value) {
-  try { window.localStorage.setItem(key, value); } catch (_) { /* ignore */ }
-}
-
-function el(id) { return document.getElementById(id); }
-
-function on(id, evt, handler) {
-  const node = el(id);
-  if (node) node.addEventListener(evt, handler);
-}
-
-function setError(msg) { el('err').textContent = msg || ''; }
-function setStatus(msg) { el('loginStatus').textContent = msg || ''; }
-
-function showSpinner(show) {
-  const s = el('spinner');
-  if (!s) return;
-  if (show) s.classList.remove('hidden'); else s.classList.add('hidden');
-}
-
-function setAriaSort(tableId, activeCol, asc) {
-  const headers = el(tableId)?.querySelectorAll('thead th.sortable') || [];
-  headers.forEach(th => {
-    const col = th.getAttribute('data-col');
-    if (col === activeCol) {
-      th.setAttribute('aria-sort', asc ? 'ascending' : 'descending');
-    } else {
-      th.setAttribute('aria-sort', 'none');
+// Initialize Supabase client
+function initSupabase() {
+    if (!supabase) {
+        supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
     }
-  });
+    return supabase;
 }
 
-function debugLog(label, value) {
-  try { console.log(label, value); } catch (_) {}
+// DOM Elements
+const el = (id) => document.getElementById(id);
+
+// Safe element value getter
+const getElValue = (id, defaultValue = '') => {
+    const element = el(id);
+    return element ? element.value : defaultValue;
+};
+
+// Show/Hide Loading
+function setLoading(show) {
+    const overlay = el('loadingOverlay');
+    if (show) {
+        overlay.classList.remove('hidden');
+    } else {
+        overlay.classList.add('hidden');
+    }
 }
 
-function renderNoRows(tableId) {
-  const tbody = el(tableId).querySelector('tbody');
-  if (!tbody) return;
-  const tr = document.createElement('tr');
-  const thCount = el(tableId).querySelectorAll('thead th').length || 1;
-  tr.innerHTML = `<td colspan="${thCount}" style="color:#666;text-align:center">No rows</td>`;
-  tbody.appendChild(tr);
+// Format numbers with commas
+function formatNumber(num) {
+    return new Intl.NumberFormat('ko-KR').format(num || 0);
 }
 
-function getPageSize() {
-  const v = parseInt((el('pageSize')?.value || '200'), 10);
-  return isNaN(v) ? 200 : Math.max(10, Math.min(500, v));
+// Format date to Korean format
+function formatDate(dateStr) {
+    if (!dateStr) return '-';
+    const date = new Date(dateStr);
+    return new Intl.DateTimeFormat('ko-KR', {
+        year: 'numeric',
+        month: '2-digit',
+        day: '2-digit',
+        hour: '2-digit',
+        minute: '2-digit'
+    }).format(date);
 }
 
-function getFilters() {
-  const uname = (el('filterUsername')?.value || '').trim();
-  const start = (el('filterStart')?.value || '').trim(); // YYYY-MM-DD (KST)
-  const end = (el('filterEnd')?.value || '').trim();
-  return { uname, start, end };
-}
-
-function updatePageInfo(rows) {
-  const info = el('pageInfo');
-  if (!info) return;
-  info.textContent = `page ${currentPage}, rows ${rows}`;
-}
-
-async function ensureClient() {
-  if (supabase) return supabase;
-  const url = (safeGetLocalStorage('spbUrl', DEFAULT_SPB_URL) || '').trim();
-  const key = (safeGetLocalStorage('anonKey', DEFAULT_ANON_KEY) || '').trim();
-  if (!url || !key) throw new Error('관리자 설정이 필요합니다: Supabase URL/Anon Key 미설정');
-  supabase = window.supabase.createClient(url, key);
-  return supabase;
-}
-
+// Login Function
 async function login() {
-  try {
-    setError('');
-    const client = await ensureClient();
-    const email = el('email').value.trim();
-    const password = el('password').value;
-    if (!email || !password) throw new Error('이메일/비밀번호를 입력하세요.');
-    const { data, error } = await client.auth.signInWithPassword({ email, password });
-    if (error) throw error;
-    // 이메일도 저장하여 다음 방문 시 자동 채움
-    safeSetLocalStorage('email', email);
-    setStatus('로그인 성공');
-    // 로그인 성공 시 뷰어 표시
-    const viewer = document.getElementById('viewer');
-    const loginCard = document.getElementById('loginCard');
-    if (viewer && loginCard) {
-      viewer.classList.remove('hidden');
-      loginCard.classList.add('hidden');
-    }
-  } catch (e) {
-    const raw = (e && e.message) ? e.message : String(e);
-    if (/Invalid login credentials/i.test(raw)) {
-      setError('이메일 또는 비밀번호를 확인하세요.');
-    } else if (/Email not confirmed/i.test(raw)) {
-      setError('이메일 인증이 필요합니다. 관리자에게 문의하세요.');
-    } else if (/Supabase URL\/Anon Key 미설정/.test(raw)) {
-      setError('시스템 설정이 누락되었습니다. 관리자에게 문의하세요.');
-    } else {
-      setError(raw);
-    }
-  }
-}
-
-async function loadBindings() {
-  try {
-    setError('');
-    const client = await ensureClient();
-    const { data, error } = await client.from('vw_device_bindings_kst').select('*').limit(100).order('bound_at_kst', { ascending: false });
-    if (error) throw error;
-    const tbody = el('tblBindings').querySelector('tbody');
-    tbody.innerHTML = '';
-    (data || []).forEach(row => {
-      const tr = document.createElement('tr');
-      tr.innerHTML = `
-        <td>${row.license_key || ''}</td>
-        <td>${(row.device_id || '').slice(0, 12)}...</td>
-        <td>${row.active ? 'true' : 'false'}</td>
-        <td>${row.bound_at_kst || ''}</td>
-        <td>${row.revoked_at_kst || ''}</td>
-      `;
-      tbody.appendChild(tr);
-    });
-  } catch (e) {
-    setError(e.message || String(e));
-  }
-}
-
-async function loadLogs() {
-  try {
-    setError('');
-    const client = await ensureClient();
-    const { data, error } = await client.from('vw_ip_access_logs_kst').select('license_key, ip_address, username, access_count, last_seen_kst, country_name, region_name, city_name').limit(100).order('last_seen_kst', { ascending: false });
-    if (error) throw error;
-    const tbody = el('tblLogs').querySelector('tbody');
-    tbody.innerHTML = '';
-    (data || []).forEach(row => {
-      const tr = document.createElement('tr');
-      tr.innerHTML = `
-        <td>${row.license_key || ''}</td>
-        <td>${row.ip_address || ''}</td>
-        <td>${row.username || ''}</td>
-        <td>${row.access_count || 0}</td>
-        <td>${row.last_seen_kst || ''}</td>
-        <td>${row.country_name || ''}</td>
-        <td>${row.region_name || ''}</td>
-        <td>${row.city_name || ''}</td>
-      `;
-      tbody.appendChild(tr);
-    });
-  } catch (e) {
-    setError(e.message || String(e));
-  }
-}
-
-async function loadRuns() {
-  try {
-    setError('');
-    showSpinner(true);
-    const client = await ensureClient();
-    const { uname, start, end } = getFilters();
-    const limit = getPageSize();
-    const offset = (currentPage - 1) * limit;
-    const s = sortState.runs;
-    let q = client
-      .from('vw_program_runs_kst')
-      .select('username, occurred_at_kst, ip_address')
-      .order(s.col, { ascending: !!s.asc })
-      .range(offset, offset + limit - 1);
-    if (uname) q = q.ilike('username', `%${uname}%`);
-    if (start) q = q.gte('occurred_at_kst', `${start} 00:00:00+09`);
-    if (end) q = q.lte('occurred_at_kst', `${end} 23:59:59+09`);
-    const { data, error } = await q;
-    if (error) throw error;
-    debugLog('runs rows', (data||[]).length);
-    const tbody = el('tblRuns').querySelector('tbody');
-    tbody.innerHTML = '';
-    (data || []).forEach(row => {
-      const tr = document.createElement('tr');
-      tr.innerHTML = `
-        <td>${row.username || ''}</td>
-        <td>${row.occurred_at_kst || ''}</td>
-        <td>${row.ip_address || ''}</td>
-      `;
-      tbody.appendChild(tr);
-    });
-    if (!data || data.length === 0) renderNoRows('tblRuns');
-    updatePageInfo((data||[]).length);
-    lastQuery = 'runs';
-  } catch (e) {
-    debugLog('runs error', e);
-    setError(e.message || String(e));
-  } finally {
-    showSpinner(false);
-  }
-}
-async function loadIpDaily() {
-  try {
-    setError('');
-    showSpinner(true);
-    const client = await ensureClient();
-    const { uname, start, end } = getFilters();
-    const limit = getPageSize();
-    const offset = (currentPage - 1) * limit;
-    let q = client
-      .from('vw_ip_access_daily_kst')
-      .select('username, day_kst, active_rows')
-      .order('day_kst', { ascending: !!(sortState.daily?.col === 'day_kst' ? sortState.daily.asc : false) })
-      .range(offset, offset + limit - 1);
-    if (uname) q = q.ilike('username', `%${uname}%`);
-    if (start) q = q.gte('day_kst', start);
-    if (end) q = q.lte('day_kst', end);
-    const { data, error } = await q;
-    if (error) throw error;
-    const tbody = el('tblIpDaily').querySelector('tbody');
-    tbody.innerHTML = '';
-    (data || []).forEach(row => {
-      const tr = document.createElement('tr');
-      tr.innerHTML = `
-        <td>${row.username || ''}</td>
-        <td>${row.day_kst || ''}</td>
-        <td>${row.active_rows || 0}</td>
-      `;
-      tbody.appendChild(tr);
-    });
-    if (!data || data.length === 0) renderNoRows('tblIpDaily');
-    updatePageInfo((data||[]).length);
-    lastQuery = 'ipdaily';
-  } catch (e) {
-    setError(e.message || String(e));
-  } finally {
-    showSpinner(false);
-  }
-}
-
-async function loadStatsDaily() {
-  try {
-    setError('');
-    showSpinner(true);
-    const client = await ensureClient();
-    const { uname, start, end } = getFilters();
-    const limit = getPageSize();
-    const offset = (currentPage - 1) * limit;
-    const s = sortState.daily;
-    let q = client
-      .from('vw_device_stats_daily_kst')
-      .select('username, day_kst, dm_count, invite_success, invite_failed, contact_total, contact_success, contact_failed')
-      .order(s.col, { ascending: !!s.asc })
-      .range(offset, offset + limit - 1);
-    if (uname) q = q.ilike('username', `%${uname}%`);
-    if (start) q = q.gte('day_kst', start);
-    if (end) q = q.lte('day_kst', end);
-    const { data, error } = await q;
-    if (error) throw error;
-    debugLog('daily rows', (data||[]).length);
-    const tbody = el('tblStatsDaily').querySelector('tbody');
-    tbody.innerHTML = '';
-    (data || []).forEach(row => {
-      const tr = document.createElement('tr');
-      tr.innerHTML = `
-        <td>${row.username || ''}</td>
-        <td>${row.day_kst || ''}</td>
-        <td>${row.dm_count || 0}</td>
-        <td>${row.invite_success || 0}</td>
-        <td>${row.invite_failed || 0}</td>
-        <td>${row.contact_total || 0}</td>
-        <td>${row.contact_success || 0}</td>
-        <td>${row.contact_failed || 0}</td>
-      `;
-      tbody.appendChild(tr);
-    });
-    if (!data || data.length === 0) renderNoRows('tblStatsDaily');
-    updatePageInfo((data||[]).length);
-    lastQuery = 'daily';
-  } catch (e) {
-    debugLog('daily error', e);
-    setError(e.message || String(e));
-  } finally {
-    showSpinner(false);
-  }
-}
-
-window.addEventListener('DOMContentLoaded', async () => {
-  // 초기 상태에서 스피너는 숨김 유지
-  try { showSpinner(false); } catch (_) {}
-  // URL 쿼리 파라미터로 기본값 주입 가능: ?url=...&key=...&email=...
-  try {
-    const params = new URLSearchParams(window.location.search);
-    const urlFromQuery = params.get('url');
-    const keyFromQuery = params.get('key');
-    const emailFromQuery = params.get('email');
-    const logoutFlag = params.get('logout');
-    if (urlFromQuery) safeSetLocalStorage('spbUrl', urlFromQuery);
-    if (keyFromQuery) safeSetLocalStorage('anonKey', keyFromQuery);
-    if (emailFromQuery) safeSetLocalStorage('email', emailFromQuery);
-    // 강제 로그아웃: ?logout=1
-    if (logoutFlag === '1') {
-      try {
-        const client = await ensureClient();
-        await client.auth.signOut();
-        const viewer = document.getElementById('viewer');
-        const loginCard = document.getElementById('loginCard');
-        if (viewer && loginCard) {
-          viewer.classList.add('hidden');
-          loginCard.classList.remove('hidden');
-        }
-      } catch (_) { /* ignore */ }
-    }
-  } catch (_) { /* ignore */ }
-
-  // 로그인 폼 채우기
-  const storedEmail = safeGetLocalStorage('email', '');
-  if (el('email') && storedEmail) {
-    el('email').value = storedEmail;
-  }
-
-  // 이미 세션이 있으면 바로 뷰어 표시
-  try {
-    const client = await ensureClient();
-    const { data } = await client.auth.getSession();
-    if (data && data.session) {
-      const viewer = document.getElementById('viewer');
-      const loginCard = document.getElementById('loginCard');
-      if (viewer && loginCard) {
-        viewer.classList.remove('hidden');
-        loginCard.classList.add('hidden');
-      }
-    }
-  } catch (_) { /* ignore */ }
-
-  on('btnLogin', 'click', login);
-  on('btnLoadRuns', 'click', loadRuns);
-  on('btnLoadStatsDaily', 'click', loadStatsDaily);
-  on('btnLoadStatsMonthly', 'click', async () => {
     try {
-      setError('');
-      showSpinner(true);
-      const client = await ensureClient();
-      const { uname, start, end } = getFilters();
-      const limit = getPageSize();
-      const offset = (currentPage - 1) * limit;
-      const s = sortState.monthly;
-      let q = client
-        .from('vw_device_stats_monthly_username')
-        .select('year, month, username, dm_count, invite_success, invite_failed, contact_total, contact_success, contact_failed')
-        .order(s.col, { ascending: !!s.asc })
-        .order(s.col2, { ascending: !!s.asc2 })
-        .range(offset, offset + limit - 1);
-      if (uname) q = q.ilike('username', `%${uname}%`);
-      const { data, error } = await q;
-      if (error) throw error;
-      debugLog('monthly rows', (data||[]).length);
-      const tbody = el('tblStatsMonthly').querySelector('tbody');
-      tbody.innerHTML = '';
-      (data || []).forEach(row => {
-        const tr = document.createElement('tr');
-        tr.innerHTML = `
-          <td>${row.year}</td>
-          <td>${row.month}</td>
-          <td>${row.username || ''}</td>
-          <td>${row.dm_count || 0}</td>
-          <td>${row.invite_success || 0}</td>
-          <td>${row.invite_failed || 0}</td>
-          <td>${row.contact_total || 0}</td>
-          <td>${row.contact_success || 0}</td>
-          <td>${row.contact_failed || 0}</td>
-        `;
-        tbody.appendChild(tr);
-      });
-      if (!data || data.length === 0) renderNoRows('tblStatsMonthly');
-      updatePageInfo((data||[]).length);
-      lastQuery = 'monthly';
-    } catch (e) {
-      debugLog('monthly error', e);
-      setError(e.message || String(e));
-    } finally {
-      showSpinner(false);
-    }
-  });
-  // pagination + filters
-  on('prevPage', 'click', () => { if (currentPage > 1) { currentPage -= 1; rerunLast(); } });
-  on('nextPage', 'click', () => { currentPage += 1; rerunLast(); });
-  on('pageSize', 'change', () => { currentPage = 1; rerunLast(); });
-  on('filterUsername', 'change', () => { currentPage = 1; rerunLast(); });
-  on('filterStart', 'change', () => { currentPage = 1; rerunLast(); });
-  on('filterEnd', 'change', () => { currentPage = 1; rerunLast(); });
-
-  // Sorting handlers
-  function attachSortHandlers() {
-    const runsHeaders = el('tblRuns')?.querySelectorAll('thead th.sortable') || [];
-    runsHeaders.forEach(th => th.addEventListener('click', () => {
-      const col = th.getAttribute('data-col');
-      if (!col) return;
-      const s = sortState.runs;
-      s.asc = (s.col === col) ? !s.asc : true; // first click asc
-      s.col = col;
-      updateSortIndicators('tblRuns', col, s.asc);
-      setAriaSort('tblRuns', col, s.asc);
-      currentPage = 1;
-      loadRuns();
-    }));
-    // keyboard support
-    runsHeaders.forEach(th => th.addEventListener('keydown', (e) => {
-      if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); th.click(); }
-    }));
-
-    const dailyHeaders = el('tblStatsDaily')?.querySelectorAll('thead th.sortable') || [];
-    dailyHeaders.forEach(th => th.addEventListener('click', () => {
-      const col = th.getAttribute('data-col');
-      if (!col) return;
-      const s = sortState.daily;
-      s.asc = (s.col === col) ? !s.asc : true;
-      s.col = col;
-      updateSortIndicators('tblStatsDaily', col, s.asc);
-      setAriaSort('tblStatsDaily', col, s.asc);
-      currentPage = 1;
-      loadStatsDaily();
-    }));
-    dailyHeaders.forEach(th => th.addEventListener('keydown', (e) => {
-      if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); th.click(); }
-    }));
-
-    const monthlyHeaders = el('tblStatsMonthly')?.querySelectorAll('thead th.sortable') || [];
-    monthlyHeaders.forEach(th => th.addEventListener('click', () => {
-      const col = th.getAttribute('data-col');
-      if (!col) return;
-      // special: if click year or month, toggle ordering primary/secondary
-      const s = sortState.monthly;
-      if (col === 'year' || col === 'month') {
-        if (s.col === col) {
-          s.asc = !s.asc;
-        } else if (s.col2 === col) {
-          s.asc2 = !s.asc2;
-        } else {
-          // set clicked as primary
-          s.col = col; s.asc = true;
-          s.col2 = (col === 'year') ? 'month' : 'year';
+        const email = getElValue('email', '').trim();
+        const password = getElValue('password', '');
+        
+        if (!email || !password) {
+            throw new Error('이메일과 비밀번호를 입력하세요.');
         }
-      } else {
-        s.col = col; s.asc = true; // default asc for other columns
-      }
-      updateSortIndicators('tblStatsMonthly', s.col, s.asc);
-      setAriaSort('tblStatsMonthly', s.col, s.asc);
-      currentPage = 1;
-      document.getElementById('btnLoadStatsMonthly')?.click();
-    }));
-    monthlyHeaders.forEach(th => th.addEventListener('keydown', (e) => {
-      if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); th.click(); }
-    }));
-  }
+        
+        setLoading(true);
+        const client = initSupabase();
+        
+        const { data, error } = await client.auth.signInWithPassword({
+            email,
+            password
+        });
+        
+    if (error) throw error;
+        
+        currentUser = data.user;
+        localStorage.setItem('userEmail', email);
+        
+        // Show dashboard
+        el('loginScreen').classList.add('hidden');
+        el('dashboard').classList.remove('hidden');
+        el('currentUser').textContent = email;
+        
+        // Load initial data
+        await loadOverview();
+        
+    } catch (error) {
+        el('loginError').textContent = error.message || '로그인 실패';
+    } finally {
+        setLoading(false);
+    }
+}
 
-  function updateSortIndicators(tableId, activeCol, asc) {
-    const headers = el(tableId)?.querySelectorAll('thead th.sortable') || [];
-    headers.forEach(th => {
-      th.classList.remove('asc', 'desc');
-      if (th.getAttribute('data-col') === activeCol) th.classList.add(asc ? 'asc' : 'desc');
+// Logout Function
+async function logout() {
+    try {
+        const client = initSupabase();
+        await client.auth.signOut();
+        
+        currentUser = null;
+        el('loginScreen').classList.remove('hidden');
+        el('dashboard').classList.add('hidden');
+        el('loginError').textContent = '';
+        
+    } catch (error) {
+        console.error('Logout error:', error);
+    }
+}
+
+// Check existing session
+async function checkSession() {
+    try {
+        const client = initSupabase();
+        const { data } = await client.auth.getSession();
+        
+        if (data && data.session) {
+            currentUser = data.session.user;
+            el('loginScreen').classList.add('hidden');
+            el('dashboard').classList.remove('hidden');
+            el('currentUser').textContent = currentUser.email;
+            
+            await loadOverview();
+        }
+    } catch (error) {
+        console.error('Session check error:', error);
+    }
+}
+
+// Load Overview Data
+async function loadOverview() {
+    try {
+        setLoading(true);
+        const client = initSupabase();
+        
+        // Get summary statistics
+        const { data: summary, error: summaryError } = await client
+            .from('vw_stats_summary')
+            .select('*');
+            
+        if (summaryError) throw summaryError;
+        
+        // Calculate totals
+        const totalUsers = summary ? summary.length : 0;
+        const monthTotal = summary ? summary.reduce((acc, row) => ({
+            dm: acc.dm + (row.total_dm || 0),
+            invites: acc.invites + (row.total_invite_success || 0)
+        }), { dm: 0, invites: 0 }) : { dm: 0, invites: 0 };
+        
+        // Get today's active users
+        const today = new Date().toISOString().split('T')[0];
+        const { data: todayData } = await client
+            .from('vw_login_history_kst')
+            .select('email')
+            .eq('action', 'login')
+            .gte('created_at_kst', `${today} 00:00:00`)
+            .lte('created_at_kst', `${today} 23:59:59`);
+            
+        const todayActive = new Set(todayData?.map(d => d.email) || []).size;
+        
+        // Update stats cards
+        el('totalUsers').textContent = formatNumber(totalUsers);
+        el('todayActive').textContent = formatNumber(todayActive);
+        el('monthInvites').textContent = formatNumber(monthTotal.invites);
+        el('monthDMs').textContent = formatNumber(monthTotal.dm);
+        
+        // Load chart data
+        await loadActivityChart();
+        
+        // Load top users
+        loadTopUsers(summary);
+        
+    } catch (error) {
+        console.error('Overview load error:', error);
+    } finally {
+        setLoading(false);
+    }
+}
+
+// Load Activity Chart (Last 7 days)
+async function loadActivityChart() {
+    try {
+        const client = initSupabase();
+        
+        // Get last 7 days
+        const dates = [];
+        const today = new Date();
+        for (let i = 6; i >= 0; i--) {
+            const date = new Date(today);
+            date.setDate(date.getDate() - i);
+            dates.push(date.toISOString().split('T')[0]);
+        }
+        
+        // Get daily stats for last 7 days
+        const { data } = await client
+            .from('vw_device_stats_daily_kst')
+            .select('day_kst, dm_count, invite_success, contact_success')
+            .in('day_kst', dates);
+            
+        // Aggregate by date
+        const chartData = dates.map(date => {
+            const dayData = (data || []).filter(d => d.day_kst === date);
+            return {
+                date,
+                dm: dayData.reduce((sum, d) => sum + (d.dm_count || 0), 0),
+                invites: dayData.reduce((sum, d) => sum + (d.invite_success || 0), 0),
+                contacts: dayData.reduce((sum, d) => sum + (d.contact_success || 0), 0)
+            };
+        });
+        
+        // Destroy existing chart
+        if (chartInstance) {
+            chartInstance.destroy();
+        }
+        
+        // Create new chart
+        const ctx = el('activityChart').getContext('2d');
+        chartInstance = new Chart(ctx, {
+            type: 'line',
+            data: {
+                labels: chartData.map(d => {
+                    const date = new Date(d.date);
+                    return `${date.getMonth() + 1}/${date.getDate()}`;
+                }),
+                datasets: [
+                    {
+                        label: 'DM 전송',
+                        data: chartData.map(d => d.dm),
+                        borderColor: '#8b5cf6',
+                        backgroundColor: 'rgba(139, 92, 246, 0.1)',
+                        tension: 0.4
+                    },
+                    {
+                        label: '초대 성공',
+                        data: chartData.map(d => d.invites),
+                        borderColor: '#3b82f6',
+                        backgroundColor: 'rgba(59, 130, 246, 0.1)',
+                        tension: 0.4
+                    },
+                    {
+                        label: '연락처 성공',
+                        data: chartData.map(d => d.contacts),
+                        borderColor: '#10b981',
+                        backgroundColor: 'rgba(16, 185, 129, 0.1)',
+                        tension: 0.4
+                    }
+                ]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                plugins: {
+                    legend: {
+                        position: 'bottom',
+                        labels: {
+                            color: '#9ca3af',
+                            padding: 15,
+                            font: { size: 12 }
+                        }
+                    }
+                },
+                scales: {
+                    y: {
+                        beginAtZero: true,
+                        grid: {
+                            color: '#2d3748',
+                            drawBorder: false
+                        },
+                        ticks: { color: '#9ca3af' }
+                    },
+                    x: {
+                        grid: {
+                            display: false
+                        },
+                        ticks: { color: '#9ca3af' }
+                    }
+                }
+            }
+        });
+        
+    } catch (error) {
+        console.error('Chart load error:', error);
+    }
+}
+
+// Load Top Users
+function loadTopUsers(summary) {
+    const topUsers = (summary || [])
+        .sort((a, b) => (b.total_invite_success || 0) - (a.total_invite_success || 0))
+        .slice(0, 5);
+        
+    const container = el('topUsersList');
+    container.innerHTML = topUsers.map((user, index) => `
+        <div class="top-user-item">
+            <div class="top-user-info">
+                <div class="top-user-rank">${index + 1}</div>
+                <div class="top-user-email">${user.email}</div>
+            </div>
+            <div class="top-user-score">${formatNumber(user.total_invite_success)}</div>
+        </div>
+    `).join('');
+}
+
+// Load Monthly Stats
+async function loadMonthlyStats() {
+    try {
+        setLoading(true);
+        const client = initSupabase();
+        
+        const year = getElValue('monthlyYear', '2025');
+        const search = getElValue('monthlySearch', '').toLowerCase();
+        
+        let query = client
+            .from('vw_device_stats_monthly_kst')
+            .select('*')
+            .eq('year', year)
+            .order('month', { ascending: false });
+            
+        if (search) {
+            query = query.ilike('email', `%${search}%`);
+        }
+        
+        const { data, error } = await query;
+    if (error) throw error;
+        
+        const container = el('monthlyGrid');
+        container.innerHTML = (data || []).map(row => `
+            <div class="data-card">
+                <div class="data-card-header">
+                    <div class="data-card-title">${row.email}</div>
+                    <div class="data-card-badge">${row.year}-${String(row.month).padStart(2, '0')}</div>
+                </div>
+                <div class="data-card-stats">
+                    <div class="data-stat">
+                        <span class="data-stat-label">DM 전송</span>
+                        <span class="data-stat-value">${formatNumber(row.dm_count)}</span>
+                    </div>
+                    <div class="data-stat">
+                        <span class="data-stat-label">초대 성공</span>
+                        <span class="data-stat-value">${formatNumber(row.invite_success)}</span>
+                    </div>
+                    <div class="data-stat">
+                        <span class="data-stat-label">초대 실패</span>
+                        <span class="data-stat-value">${formatNumber(row.invite_failed)}</span>
+                    </div>
+                    <div class="data-stat">
+                        <span class="data-stat-label">연락처 처리</span>
+                        <span class="data-stat-value">${formatNumber(row.contact_total)}</span>
+                    </div>
+                </div>
+            </div>
+        `).join('');
+        
+    } catch (error) {
+        console.error('Monthly stats error:', error);
+  } finally {
+        setLoading(false);
+    }
+}
+
+// Load Daily Stats
+async function loadDailyStats() {
+    try {
+        setLoading(true);
+        const client = initSupabase();
+        
+        const startDate = getElValue('dailyDateStart', '');
+        const endDate = getElValue('dailyDateEnd', '');
+        const search = getElValue('dailySearch', '').toLowerCase();
+        
+        let query = client
+            .from('vw_device_stats_daily_kst')
+            .select('*')
+            .order('day_kst', { ascending: false })
+            .limit(100);
+            
+        if (startDate) {
+            query = query.gte('day_kst', startDate);
+        }
+        if (endDate) {
+            query = query.lte('day_kst', endDate);
+        }
+        if (search) {
+            query = query.ilike('email', `%${search}%`);
+        }
+        
+        const { data, error } = await query;
+        if (error) throw error;
+        
+        const tbody = el('dailyTableBody');
+        tbody.innerHTML = (data || []).map(row => `
+            <tr>
+                <td>${row.day_kst}</td>
+                <td>${row.email}</td>
+                <td>${formatNumber(row.dm_count)}</td>
+                <td>${formatNumber(row.invite_success)}</td>
+                <td>${formatNumber(row.invite_failed)}</td>
+                <td>${formatNumber(row.contact_total)}</td>
+                <td>${formatNumber(row.contact_success)}</td>
+            </tr>
+        `).join('');
+        
+        if (!data || data.length === 0) {
+            tbody.innerHTML = '<tr><td colspan="7" style="text-align:center;color:#6b7280;">데이터가 없습니다</td></tr>';
+        }
+        
+    } catch (error) {
+        console.error('Daily stats error:', error);
+    } finally {
+        setLoading(false);
+    }
+}
+
+// Load Activity Log
+async function loadActivityLog() {
+    try {
+        setLoading(true);
+        const client = initSupabase();
+        
+        const search = getElValue('activitySearch', '').toLowerCase();
+        const action = getElValue('activityAction', '');
+        
+        let query = client
+            .from('vw_login_history_kst')
+            .select('email, action, created_at_kst_str, ip_address')
+            .order('created_at_kst', { ascending: false })
+            .limit(50);
+            
+        if (search) {
+            query = query.ilike('email', `%${search}%`);
+        }
+        if (action) {
+            query = query.eq('action', action);
+        }
+        
+        const { data, error } = await query;
+      if (error) throw error;
+        
+        const container = el('activityTimeline');
+        container.innerHTML = (data || []).map(row => `
+            <div class="activity-item">
+                <div class="activity-icon ${row.action}">
+                    ${row.action === 'login' ? '→' : '←'}
+                </div>
+                <div class="activity-content">
+                    <div class="activity-user">${row.email}</div>
+                    <div class="activity-details">
+                        ${row.action === 'login' ? '로그인' : '로그아웃'} 
+                        ${row.ip_address ? `• IP: ${row.ip_address}` : ''}
+                    </div>
+                    <div class="activity-time">${row.created_at_kst_str}</div>
+                </div>
+            </div>
+        `).join('');
+        
+        if (!data || data.length === 0) {
+            container.innerHTML = '<div style="text-align:center;padding:40px;color:#6b7280;">활동 기록이 없습니다</div>';
+        }
+        
+    } catch (error) {
+        console.error('Activity log error:', error);
+    } finally {
+        setLoading(false);
+    }
+}
+
+// Tab Navigation
+function setupTabs() {
+    const tabs = document.querySelectorAll('.tab-btn');
+    const contents = document.querySelectorAll('.tab-content');
+    
+    tabs.forEach(tab => {
+        tab.addEventListener('click', async () => {
+            const targetTab = tab.dataset.tab;
+            
+            // Update active states
+            tabs.forEach(t => t.classList.remove('active'));
+            contents.forEach(c => c.classList.remove('active'));
+            
+            tab.classList.add('active');
+            el(targetTab).classList.add('active');
+            
+            // Load tab data
+            switch (targetTab) {
+                case 'overview':
+                    await loadOverview();
+                    break;
+                case 'monthly':
+                    await loadMonthlyStats();
+                    break;
+                case 'daily':
+                    await loadDailyStats();
+                    break;
+                case 'activity':
+                    await loadActivityLog();
+                    break;
+            }
+        });
     });
-  }
+}
 
-  attachSortHandlers();
-  // initial indicators per default sort state
-  updateSortIndicators('tblRuns', sortState.runs.col, sortState.runs.asc);
-  setAriaSort('tblRuns', sortState.runs.col, sortState.runs.asc);
-  updateSortIndicators('tblStatsDaily', sortState.daily.col, sortState.daily.asc);
-  setAriaSort('tblStatsDaily', sortState.daily.col, sortState.daily.asc);
-  updateSortIndicators('tblStatsMonthly', sortState.monthly.col, sortState.monthly.asc);
-  setAriaSort('tblStatsMonthly', sortState.monthly.col, sortState.monthly.asc);
-
-  // Health indicator: latest KST dates (오류 무시, 스피너 영향 없음)
-  try {
-    const client = await ensureClient();
-    const [{ data: runs }, { data: daily }, { data: monthly }] = await Promise.all([
-      client.from('vw_program_runs_kst').select('occurred_at_kst').order('occurred_at_kst', { ascending: false }).limit(1),
-      client.from('vw_device_stats_daily_kst').select('day_kst').order('day_kst', { ascending: false }).limit(1),
-      client.from('vw_device_stats_monthly_username').select('year,month').order('year', { ascending: false }).order('month', { ascending: false }).limit(1),
-    ]);
-    const r = runs && runs[0]?.occurred_at_kst ? String(runs[0].occurred_at_kst).slice(0, 16) : '-';
-    const d = daily && daily[0]?.day_kst ? String(daily[0].day_kst) : '-';
-    const m = monthly && monthly[0] ? `${monthly[0].year}-${String(monthly[0].month).padStart(2, '0')}` : '-';
-    const health = el('health');
-    if (health) health.textContent = `Runs 최신: ${r} · Daily 최신: ${d} · Monthly 최신: ${m}`;
-  } catch (e) { /* ignore */ }
+// Initialize
+document.addEventListener('DOMContentLoaded', async () => {
+    // Check saved email
+    const savedEmail = localStorage.getItem('userEmail');
+    const emailEl = el('email');
+    if (savedEmail && emailEl) {
+        emailEl.value = savedEmail;
+    }
+    
+    // Setup event listeners (with null checks)
+    const addEvent = (id, event, handler) => {
+        const element = el(id);
+        if (element) {
+            element.addEventListener(event, handler);
+        }
+    };
+    
+    addEvent('btnLogin', 'click', login);
+    addEvent('btnLogout', 'click', logout);
+    addEvent('btnDailyApply', 'click', loadDailyStats);
+    addEvent('btnActivityRefresh', 'click', loadActivityLog);
+    
+    // Enter key for login
+    addEvent('password', 'keypress', (e) => {
+        if (e.key === 'Enter') login();
+    });
+    
+    // Filter change events
+    addEvent('monthlyYear', 'change', loadMonthlyStats);
+    addEvent('monthlySearch', 'input', debounce(loadMonthlyStats, 500));
+    addEvent('dailySearch', 'input', debounce(loadDailyStats, 500));
+    addEvent('activitySearch', 'input', debounce(loadActivityLog, 500));
+    addEvent('activityAction', 'change', loadActivityLog);
+    
+    // Set default dates for daily stats
+    const today = new Date();
+    const lastWeek = new Date(today);
+    lastWeek.setDate(lastWeek.getDate() - 7);
+    
+    const endDateEl = el('dailyDateEnd');
+    const startDateEl = el('dailyDateStart');
+    if (endDateEl) endDateEl.value = today.toISOString().split('T')[0];
+    if (startDateEl) startDateEl.value = lastWeek.toISOString().split('T')[0];
+    
+    // Setup tabs
+    setupTabs();
+    
+    // Check existing session
+    await checkSession();
 });
 
-function rerunLast() {
-  if (lastQuery === 'runs') return loadRuns();
-  if (lastQuery === 'daily') return loadStatsDaily();
-  if (lastQuery === 'ipdaily') return loadIpDaily();
-  if (lastQuery === 'monthly') return (document.getElementById('btnLoadStatsMonthly')?.click());
+// Utility: Debounce function
+function debounce(func, wait) {
+    let timeout;
+    return function executedFunction(...args) {
+        const later = () => {
+            clearTimeout(timeout);
+            func(...args);
+        };
+        clearTimeout(timeout);
+        timeout = setTimeout(later, wait);
+    };
 }
-
-
