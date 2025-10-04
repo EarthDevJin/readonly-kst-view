@@ -341,8 +341,6 @@ async function loadMonthlyStats() {
         const year = getElValue('monthlyYear', '2025');
         const search = getElValue('monthlySearch', '').toLowerCase();
         
-        console.log('[Monthly] Loading stats for year:', year, 'search:', search);
-        
         let query = client
             .from('vw_device_stats_monthly_kst')
             .select('*')
@@ -355,10 +353,7 @@ async function loadMonthlyStats() {
         
         const { data, error } = await query;
         
-        console.log('[Monthly] Data:', data);
-        console.log('[Monthly] Error:', error);
-        
-    if (error) throw error;
+        if (error) throw error;
         
         const container = el('monthlyGrid');
         
@@ -476,7 +471,6 @@ async function loadActivityLog() {
         const startDate = getElValue('activityDateStart', '');
         const endDate = getElValue('activityDateEnd', '');
         
-        console.log('[Activity] Loading login history, search:', search, 'action:', action, 'dates:', startDate, '-', endDate);
         
         let query = client
             .from('vw_login_history_kst')
@@ -491,16 +485,14 @@ async function loadActivityLog() {
             query = query.eq('action', action);
         }
         if (startDate) {
-            query = query.gte('created_at_kst', startDate + 'T00:00:00+09:00');
+            query = query.gte('created_at_kst_str', startDate);
         }
         if (endDate) {
-            query = query.lte('created_at_kst', endDate + 'T23:59:59+09:00');
+            query = query.lte('created_at_kst_str', endDate + ' 23:59:59');
         }
         
         const { data, error } = await query;
         
-        console.log('[Activity] Data:', data);
-        console.log('[Activity] Error:', error);
         
         if (error) throw error;
         
