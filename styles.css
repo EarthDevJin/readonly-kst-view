@@ -472,7 +472,9 @@ body {
     background: var(--bg-card);
     border: 1px solid var(--border);
     border-radius: 12px;
-    overflow: hidden;
+    overflow-x: auto;
+    overflow-y: hidden;
+    -webkit-overflow-scrolling: touch;
 }
 
 .data-table {
@@ -825,15 +827,69 @@ body {
         cursor: pointer;
     }
     
-    /* Table responsive scroll */
+    /* Table responsive - no scroll, vertical headers */
+    .table-container {
+        overflow-x: visible;
+        border-radius: 8px;
+    }
+    
+    .data-table {
+        width: 100%;
+        font-size: 11px;
+        table-layout: fixed;
+    }
+    
+    .data-table thead th {
+        writing-mode: vertical-rl;
+        text-orientation: upright;
+        height: 70px;
+        padding: 8px 2px;
+        font-size: 10px;
+        white-space: nowrap;
+        vertical-align: bottom;
+        letter-spacing: 2px;
+    }
+    
+    .data-table thead th:first-child,
+    .data-table thead th:nth-child(2) {
+        writing-mode: horizontal-tb;
+        height: auto;
+        padding: 8px 4px;
+        letter-spacing: normal;
+        vertical-align: middle;
+    }
+    
+    .data-table thead th:first-child {
+        width: 25%;
+    }
+    
+    .data-table thead th:nth-child(2) {
+        width: 30%;
+    }
+    
+    .data-table thead th:nth-child(n+3) {
+        width: 9%;
+    }
+    
+    .data-table tbody td {
+        padding: 6px 2px;
+        text-align: center;
+        font-size: 11px;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+    }
+    
+    .data-table tbody td:first-child,
+    .data-table tbody td:nth-child(2) {
+        text-align: left;
+        padding: 6px 4px;
+        font-size: 10px;
+    }
+    
     .data-card {
         overflow-x: auto;
         /* Smooth scrolling is now default in modern browsers */
-    }
-    
-    table {
-        min-width: 600px;
-        font-size: 12px;
     }
     
     /* Activity timeline mobile optimization */

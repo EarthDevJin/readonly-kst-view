@@ -658,26 +658,21 @@ function setupMobileScrollGuide() {
     const guide = el('mobileScrollGuide');
     if (!guide) return;
     
-    // Check if user has seen guide today
-    const today = new Date().toDateString();
-    const lastSeenDate = localStorage.getItem('scrollGuideDate');
-    const showCount = parseInt(localStorage.getItem('scrollGuideCount') || '0');
+    // Show guide only when activity tab is clicked
+    const activityTabBtn = document.querySelector('[data-tab="activity"]');
+    if (!activityTabBtn) return;
     
-    // Show guide on first visit or if it's a new day (max 3 times per day)
-    if (lastSeenDate !== today || showCount < 3) {
+    activityTabBtn.addEventListener('click', () => {
+        // Show guide every time activity tab is clicked
         setTimeout(() => {
             guide.classList.remove('hidden');
-            
-            // Update localStorage
-            localStorage.setItem('scrollGuideDate', today);
-            localStorage.setItem('scrollGuideCount', String(showCount + 1));
             
             // Auto hide after animation
             setTimeout(() => {
                 guide.classList.add('hidden');
-            }, 3500);
-        }, 1500);
-    }
+            }, 3000);
+        }, 500);
+    });
     
     // Track scroll on cards with better detection
     const cards = document.querySelectorAll('.data-card, .stat-card, .chart-card, table');
@@ -704,11 +699,7 @@ function setupMobileScrollGuide() {
             focusedElement = element;
         }, { passive: true });
         
-        // Make tables scrollable on mobile
-        if (element.tagName === 'TABLE') {
-            element.style.display = 'block';
-            element.style.overflowX = 'auto';
-        }
+        // Tables are handled by CSS .table-container
     });
     
     // Hide guide immediately on guide touch
