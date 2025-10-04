@@ -441,13 +441,13 @@ async function loadDailyStats() {
         
         tbody.innerHTML = data.map(row => `
             <tr>
-                <td>${row.day_kst}</td>
-                <td>${row.email}</td>
-                <td>${formatNumber(row.dm_count)}</td>
-                <td>${formatNumber(row.invite_success)}</td>
-                <td>${formatNumber(row.invite_failed)}</td>
-                <td>${formatNumber(row.contact_total)}</td>
-                <td>${formatNumber(row.contact_success)}</td>
+                <td>${row.day_kst || '-'}</td>
+                <td>${row.email || '-'}</td>
+                <td>${formatNumber(row.dm_count || 0)}</td>
+                <td>${formatNumber(row.invite_success || 0)}</td>
+                <td>${formatNumber(row.invite_failed || 0)}</td>
+                <td>${formatNumber(row.contact_total || 0)}</td>
+                <td>${formatNumber(row.contact_success || 0)}</td>
             </tr>
         `).join('');
         
@@ -619,15 +619,25 @@ document.addEventListener('DOMContentLoaded', async () => {
     addEvent('activityDateStart', 'change', loadActivityLog);
     addEvent('activityDateEnd', 'change', loadActivityLog);
     
-    // Set default dates for daily stats
+    // Set default dates for all date inputs
     const today = new Date();
     const lastWeek = new Date(today);
     lastWeek.setDate(lastWeek.getDate() - 7);
     
-    const endDateEl = el('dailyDateEnd');
-    const startDateEl = el('dailyDateStart');
-    if (endDateEl) endDateEl.value = today.toISOString().split('T')[0];
-    if (startDateEl) startDateEl.value = lastWeek.toISOString().split('T')[0];
+    const todayStr = today.toISOString().split('T')[0];
+    const lastWeekStr = lastWeek.toISOString().split('T')[0];
+    
+    // Daily stats dates
+    const dailyEndEl = el('dailyDateEnd');
+    const dailyStartEl = el('dailyDateStart');
+    if (dailyEndEl) dailyEndEl.value = todayStr;
+    if (dailyStartEl) dailyStartEl.value = lastWeekStr;
+    
+    // Activity log dates (today only by default)
+    const activityEndEl = el('activityDateEnd');
+    const activityStartEl = el('activityDateStart');
+    if (activityEndEl) activityEndEl.value = todayStr;
+    if (activityStartEl) activityStartEl.value = todayStr;
     
     // Setup tabs
     setupTabs();
@@ -642,49 +652,71 @@ document.addEventListener('DOMContentLoaded', async () => {
 // Mobile Scroll Guide
 function setupMobileScrollGuide() {
     // Check if mobile
-    if (window.innerWidth > 768) return;
+    const isMobile = window.innerWidth <= 768 || 'ontouchstart' in window;
+    if (!isMobile) return;
     
     const guide = el('mobileScrollGuide');
     if (!guide) return;
     
-    let hasShownGuide = localStorage.getItem('hasSeenScrollGuide');
+    // Check if user has seen guide today
+    const today = new Date().toDateString();
+    const lastSeenDate = localStorage.getItem('scrollGuideDate');
+    const showCount = parseInt(localStorage.getItem('scrollGuideCount') || '0');
     
-    // Show guide on first visit
-    if (!hasShownGuide) {
+    // Show guide on first visit or if it's a new day (max 3 times per day)
+    if (lastSeenDate !== today || showCount < 3) {
         setTimeout(() => {
             guide.classList.remove('hidden');
-            localStorage.setItem('hasSeenScrollGuide', 'true');
+            
+            // Update localStorage
+            localStorage.setItem('scrollGuideDate', today);
+            localStorage.setItem('scrollGuideCount', String(showCount + 1));
             
             // Auto hide after animation
             setTimeout(() => {
                 guide.classList.add('hidden');
-            }, 3000);
-        }, 1000);
+            }, 3500);
+        }, 1500);
     }
     
-    // Track scroll on cards
-    const cards = document.querySelectorAll('.data-card, .stat-card, .chart-card');
-    let lastFocusedCard = null;
+    // Track scroll on cards with better detection
+    const cards = document.querySelectorAll('.data-card, .stat-card, .chart-card, table');
+    let focusedElement = null;
+    let touchCount = 0;
     
-    cards.forEach(card => {
-        card.addEventListener('touchstart', (e) => {
-            if (lastFocusedCard && lastFocusedCard !== card) {
-                // Show reminder if user tries to scroll on different card
-                guide.classList.remove('hidden');
-                setTimeout(() => {
-                    guide.classList.add('hidden');
-                }, 2000);
+    cards.forEach(element => {
+        // Touch start event
+        element.addEventListener('touchstart', (e) => {
+            touchCount++;
+            
+            // Show guide if switching focus and haven't shown too many times
+            if (focusedElement && focusedElement !== element && touchCount > 2) {
+                const currentShowCount = parseInt(localStorage.getItem('scrollGuideCount') || '0');
+                if (currentShowCount < 5) {
+                    guide.classList.remove('hidden');
+                    setTimeout(() => {
+                        guide.classList.add('hidden');
+                    }, 2500);
+                    localStorage.setItem('scrollGuideCount', String(currentShowCount + 1));
+                }
+                touchCount = 0;
             }
-            lastFocusedCard = card;
-        });
-    });
-    
-    // Hide guide on any touch
-    document.addEventListener('touchstart', () => {
-        if (!guide.classList.contains('hidden')) {
-            guide.classList.add('hidden');
+            focusedElement = element;
+        }, { passive: true });
+        
+        // Make tables scrollable on mobile
+        if (element.tagName === 'TABLE') {
+            const parent = element.parentElement;
+            if (parent) {
+                parent.style.overflowX = 'auto';
+            }
         }
     });
+    
+    // Hide guide immediately on guide touch
+    guide.addEventListener('touchstart', () => {
+        guide.classList.add('hidden');
+    }, { passive: true });
 }
 
 // Utility: Debounce function
