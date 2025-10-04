@@ -358,7 +358,7 @@ async function loadMonthlyStats() {
         console.log('[Monthly] Data:', data);
         console.log('[Monthly] Error:', error);
         
-        if (error) throw error;
+    if (error) throw error;
         
         const container = el('monthlyGrid');
         
@@ -398,7 +398,7 @@ async function loadMonthlyStats() {
         console.error('Monthly stats error:', error);
         const container = el('monthlyGrid');
         container.innerHTML = '<div style="text-align:center;padding:40px;color:#ef4444;">데이터 로드 실패</div>';
-    } finally {
+  } finally {
         setLoading(false);
     }
 }
@@ -414,7 +414,7 @@ async function loadDailyStats() {
         const search = getElValue('dailySearch', '').toLowerCase();
         
         let query = client
-            .from('vw_device_stats_daily_kst')
+      .from('vw_device_stats_daily_kst')
             .select('*')
             .order('day_kst', { ascending: false })
             .limit(100);
@@ -430,7 +430,7 @@ async function loadDailyStats() {
         }
         
         const { data, error } = await query;
-      if (error) throw error;
+    if (error) throw error;
         
         const tbody = el('dailyTableBody');
         
@@ -455,7 +455,7 @@ async function loadDailyStats() {
         console.error('Daily stats error:', error);
         const tbody = el('dailyTableBody');
         tbody.innerHTML = '<tr><td colspan="7" style="text-align:center;color:#ef4444;">데이터 로드 실패</td></tr>';
-    } finally {
+  } finally {
         setLoading(false);
     }
 }
@@ -468,20 +468,28 @@ async function loadActivityLog() {
         
         const search = getElValue('activitySearch', '').toLowerCase();
         const action = getElValue('activityAction', '');
+        const startDate = getElValue('activityDateStart', '');
+        const endDate = getElValue('activityDateEnd', '');
         
-        console.log('[Activity] Loading login history, search:', search, 'action:', action);
+        console.log('[Activity] Loading login history, search:', search, 'action:', action, 'dates:', startDate, '-', endDate);
         
         let query = client
             .from('vw_login_history_kst')
-            .select('email, action, created_at_kst_str, ip_address')
-            .order('created_at_kst', { ascending: false })
-            .limit(50);
+            .select('email, action, created_at_kst_str, ip_address, created_at')
+            .order('created_at', { ascending: false })
+            .limit(100);
             
         if (search) {
             query = query.ilike('email', `%${search}%`);
         }
         if (action) {
             query = query.eq('action', action);
+        }
+        if (startDate) {
+            query = query.gte('created_at', startDate + 'T00:00:00');
+        }
+        if (endDate) {
+            query = query.lte('created_at', endDate + 'T23:59:59');
         }
         
         const { data, error } = await query;
@@ -498,21 +506,38 @@ async function loadActivityLog() {
             return;
         }
         
-        container.innerHTML = data.map(row => `
-            <div class="activity-item">
-                <div class="activity-icon ${row.action}">
-                    ${row.action === 'login' ? '→' : '←'}
-                </div>
-                <div class="activity-content">
-                    <div class="activity-user">${row.email}</div>
-                    <div class="activity-details">
-                        ${row.action === 'login' ? '로그인' : '로그아웃'} 
-                        ${row.ip_address ? `• IP: ${row.ip_address}` : ''}
+        // Group by date
+        const groupedData = {};
+        data.forEach(item => {
+            const date = item.created_at_kst_str.split(' ')[0];
+            if (!groupedData[date]) {
+                groupedData[date] = [];
+            }
+            groupedData[date].push(item);
+        });
+        
+        // Render with date dividers
+        let html = '';
+        Object.entries(groupedData).forEach(([date, items]) => {
+            html += `<div class="date-divider">${date}</div>`;
+            html += items.map(item => `
+                <div class="activity-item">
+                    <div class="activity-icon ${item.action}">
+                        ${item.action === 'login' ? '→' : '←'}
                     </div>
-                    <div class="activity-time">${row.created_at_kst_str}</div>
+                    <div class="activity-content">
+                        <div class="activity-user">${item.email}</div>
+                        <div class="activity-details">
+                            ${item.action === 'login' ? '로그인' : '로그아웃'} 
+                            ${item.ip_address ? `• IP: ${item.ip_address}` : ''}
+                        </div>
+                        <div class="activity-time">${item.created_at_kst_str.split(' ')[1]}</div>
+                    </div>
                 </div>
-            </div>
-        `).join('');
+            `).join('');
+        });
+        
+        container.innerHTML = html;
         
     } catch (error) {
         console.error('Activity log error:', error);
@@ -591,6 +616,8 @@ document.addEventListener('DOMContentLoaded', async () => {
     addEvent('dailySearch', 'input', debounce(loadDailyStats, 500));
     addEvent('activitySearch', 'input', debounce(loadActivityLog, 500));
     addEvent('activityAction', 'change', loadActivityLog);
+    addEvent('activityDateStart', 'change', loadActivityLog);
+    addEvent('activityDateEnd', 'change', loadActivityLog);
     
     // Set default dates for daily stats
     const today = new Date();
@@ -605,9 +632,60 @@ document.addEventListener('DOMContentLoaded', async () => {
     // Setup tabs
     setupTabs();
     
+    // Setup mobile scroll guide
+    setupMobileScrollGuide();
+    
     // Check existing session
     await checkSession();
 });
+
+// Mobile Scroll Guide
+function setupMobileScrollGuide() {
+    // Check if mobile
+    if (window.innerWidth > 768) return;
+    
+    const guide = el('mobileScrollGuide');
+    if (!guide) return;
+    
+    let hasShownGuide = localStorage.getItem('hasSeenScrollGuide');
+    
+    // Show guide on first visit
+    if (!hasShownGuide) {
+        setTimeout(() => {
+            guide.classList.remove('hidden');
+            localStorage.setItem('hasSeenScrollGuide', 'true');
+            
+            // Auto hide after animation
+            setTimeout(() => {
+                guide.classList.add('hidden');
+            }, 3000);
+        }, 1000);
+    }
+    
+    // Track scroll on cards
+    const cards = document.querySelectorAll('.data-card, .stat-card, .chart-card');
+    let lastFocusedCard = null;
+    
+    cards.forEach(card => {
+        card.addEventListener('touchstart', (e) => {
+            if (lastFocusedCard && lastFocusedCard !== card) {
+                // Show reminder if user tries to scroll on different card
+                guide.classList.remove('hidden');
+                setTimeout(() => {
+                    guide.classList.add('hidden');
+                }, 2000);
+            }
+            lastFocusedCard = card;
+        });
+    });
+    
+    // Hide guide on any touch
+    document.addEventListener('touchstart', () => {
+        if (!guide.classList.contains('hidden')) {
+            guide.classList.add('hidden');
+        }
+    });
+}
 
 // Utility: Debounce function
 function debounce(func, wait) {
