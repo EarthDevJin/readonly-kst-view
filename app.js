@@ -658,21 +658,27 @@ function setupMobileScrollGuide() {
     const guide = el('mobileScrollGuide');
     if (!guide) return;
     
-    // Show guide only when activity tab is clicked
+    // Show guide when activity or daily tab is clicked
     const activityTabBtn = document.querySelector('[data-tab="activity"]');
-    if (!activityTabBtn) return;
+    const dailyTabBtn = document.querySelector('[data-tab="daily"]');
     
-    activityTabBtn.addEventListener('click', () => {
-        // Show guide every time activity tab is clicked
+    const showGuide = () => {
         setTimeout(() => {
             guide.classList.remove('hidden');
             
             // Auto hide after animation
             setTimeout(() => {
                 guide.classList.add('hidden');
-            }, 3000);
-        }, 500);
-    });
+            }, 2500);
+        }, 300);
+    };
+    
+    if (activityTabBtn) {
+        activityTabBtn.addEventListener('click', showGuide);
+    }
+    if (dailyTabBtn) {
+        dailyTabBtn.addEventListener('click', showGuide);
+    }
     
     // Track scroll on cards with better detection
     const cards = document.querySelectorAll('.data-card, .stat-card, .chart-card, table');

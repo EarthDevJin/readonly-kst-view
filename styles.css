@@ -827,64 +827,28 @@ body {
         cursor: pointer;
     }
     
-    /* Table responsive - no scroll, vertical headers */
+    /* Table responsive - keep horizontal scroll */
     .table-container {
-        overflow-x: visible;
+        overflow-x: auto;
+        -webkit-overflow-scrolling: touch;
         border-radius: 8px;
     }
     
     .data-table {
-        width: 100%;
+        min-width: 600px;
         font-size: 11px;
-        table-layout: fixed;
     }
     
-    .data-table thead th {
-        writing-mode: vertical-rl;
-        text-orientation: upright;
-        height: 70px;
-        padding: 8px 2px;
-        font-size: 10px;
-        white-space: nowrap;
-        vertical-align: bottom;
-        letter-spacing: 2px;
-    }
-    
-    .data-table thead th:first-child,
-    .data-table thead th:nth-child(2) {
-        writing-mode: horizontal-tb;
-        height: auto;
+    .data-table th {
         padding: 8px 4px;
-        letter-spacing: normal;
-        vertical-align: middle;
-    }
-    
-    .data-table thead th:first-child {
-        width: 25%;
-    }
-    
-    .data-table thead th:nth-child(2) {
-        width: 30%;
-    }
-    
-    .data-table thead th:nth-child(n+3) {
-        width: 9%;
-    }
-    
-    .data-table tbody td {
-        padding: 6px 2px;
-        text-align: center;
         font-size: 11px;
-        overflow: hidden;
-        text-overflow: ellipsis;
         white-space: nowrap;
     }
     
-    .data-table tbody td:first-child,
-    .data-table tbody td:nth-child(2) {
-        text-align: left;
-        padding: 6px 4px;
-        font-size: 10px;
+    .data-table td {
+        padding: 8px 4px;
+        font-size: 11px;
+        white-space: nowrap;
     }
     
     .data-card {
