@@ -618,6 +618,11 @@ function updateDailyHeaderOrientation() {
     });
 }
 
+// Re-apply on resize/orientation change
+window.addEventListener('resize', () => {
+    updateDailyHeaderOrientation();
+});
+
 // Initialize
 document.addEventListener('DOMContentLoaded', async () => {
     // Check saved email

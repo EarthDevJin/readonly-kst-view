@@ -854,16 +854,8 @@ body {
         display: block;
     }
     
-    /* 세로 텍스트 헤더 (모바일 전용)
-       - webkit/IE 프리픽스 먼저
-       - 표준 writing-mode: vertical-rl (위->아래)
-       - transform 제거 (거꾸로 보이는 문제 해결)
-    */
+    /* 세로 텍스트 헤더 (모바일 전용) - writing-mode 제거, JS로 세로 스택 렌더링 */
     .data-table thead th {
-        -webkit-writing-mode: vertical-rl;
-        -ms-writing-mode: tb-rl;
-        writing-mode: vertical-rl;
-        text-orientation: upright; /* 한글/숫자 자연스럽게 */
         height: 96px;
         padding: 6px 2px;
         font-size: 10px;
@@ -876,10 +868,6 @@ body {
     /* 날짜와 이메일은 가로 유지 */
     .data-table thead th:first-child,
     .data-table thead th:nth-child(2) {
-        -webkit-writing-mode: horizontal-tb;
-        -ms-writing-mode: lr-tb;
-        writing-mode: horizontal-tb;  /* 표준 속성은 마지막에 */
-        transform: none;
         height: auto;
         min-height: 40px;
         padding: 8px 4px;
