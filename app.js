@@ -148,9 +148,10 @@ async function loadOverview() {
         const monthTotal = monthlyData ? monthlyData
             .filter(d => d.month === currentMonth && d.year === currentYear)
             .reduce((acc, row) => ({
-                dm: acc.dm + (row.dm_count || 0),
-                invites: acc.invites + (row.invite_success || 0)
-            }), { dm: 0, invites: 0 }) : { dm: 0, invites: 0 };
+                invites: acc.invites + (row.invite_success || 0),
+                inviteFailed: acc.inviteFailed + (row.invite_failed || 0),
+                contacts: acc.contacts + (row.contact_success || 0)
+            }), { invites: 0, inviteFailed: 0, contacts: 0 }) : { invites: 0, inviteFailed: 0, contacts: 0 };
         
         // Get today's active users from login history
         const today = new Date().toISOString().split('T')[0];
@@ -167,7 +168,8 @@ async function loadOverview() {
         el('totalUsers').textContent = formatNumber(totalUsers);
         el('todayActive').textContent = formatNumber(todayActive);
         el('monthInvites').textContent = formatNumber(monthTotal.invites);
-        el('monthDMs').textContent = formatNumber(monthTotal.dm);
+        el('monthContacts').textContent = formatNumber(monthTotal.contacts);
+        el('monthInviteFailed').textContent = formatNumber(monthTotal.inviteFailed);
         
         // Load chart data
         await loadActivityChart();
