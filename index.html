@@ -12,7 +12,7 @@
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
     
-    <link rel="stylesheet" href="styles.css?v=17" />
+    <link rel="stylesheet" href="styles.css?v=19" />
     <link rel="icon" type="image/x-icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>📊</text></svg>">
     
     <!-- Supabase Client -->
@@ -20,7 +20,7 @@
     <!-- Chart.js for visualizations -->
     <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
     
-    <script defer src="app.js?v=13"></script>
+    <script defer src="app.js?v=19"></script>
 </head>
 <body>
     <!-- Login Screen -->
@@ -89,6 +89,12 @@
                     <path d="M12 2v20M2 12h20"/>
                 </svg>
                 접속 기록
+            </button>
+            <button class="tab-btn" data-tab="links">
+                <svg class="tab-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <path stroke-linecap="round" stroke-linejoin="round" d="M13.828 10.172a4 4 0 00-5.656 0l-4 4a4 4 0 105.656 5.656l1.102-1.101m-.758-4.899a4 4 0 005.656 0l4-4a4 4 0 00-5.656-5.656l-1.1 1.1"/>
+                </svg>
+                링크
             </button>
         </nav>
 
@@ -212,6 +218,7 @@
                                 <th scope="col">초대 실패</th>
                                 <th scope="col">연락처 처리</th>
                                 <th scope="col">연락처 성공</th>
+                                <th scope="col">링크 수</th>
                             </tr>
                         </thead>
                         <tbody id="dailyTableBody">
@@ -241,6 +248,22 @@
                 
                 <div class="activity-timeline" id="activityTimeline">
                     <!-- Activity items will be inserted here -->
+                </div>
+            </div>
+            
+            <!-- Links Tab -->
+            <div id="links" class="tab-content">
+                <div class="content-header">
+                    <h2>링크 관리</h2>
+                    <div class="filter-group">
+                        <input type="date" id="linksMonth" class="filter-input" title="월 선택" aria-label="월 선택" placeholder="YYYY-MM-DD">
+                        <input type="text" id="linksEmailFilter" class="filter-input" placeholder="이메일 검색..." 
+                               title="이메일 검색" aria-label="이메일 검색">
+                        <button id="linksSearchBtn" class="btn-secondary">검색</button>
+                    </div>
+                </div>
+                <div id="linksContainer" class="links-container">
+                    <!-- 계층적 카드 뷰가 여기에 동적으로 생성됩니다 -->
                 </div>
             </div>
         </main>

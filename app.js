@@ -390,6 +390,10 @@ async function loadMonthlyStats() {
                         <span class="data-stat-label">연락처 처리</span>
                         <span class="data-stat-value">${formatNumber(row.contact_total)}</span>
                     </div>
+                    <div class="data-stat">
+                        <span class="data-stat-label">링크 수</span>
+                        <span class="data-stat-value">${formatNumber(row.link_count || 0)}</span>
+                    </div>
                 </div>
             </div>
         `).join('');
@@ -448,6 +452,7 @@ async function loadDailyStats() {
                 <td>${formatNumber(row.invite_failed || 0)}</td>
                 <td>${formatNumber(row.contact_total || 0)}</td>
                 <td>${formatNumber(row.contact_success || 0)}</td>
+                <td>${formatNumber(row.link_count || 0)}</td>
             </tr>
         `).join('');
         
@@ -579,6 +584,9 @@ function setupTabs() {
                 case 'activity':
                     await loadActivityLog();
                     break;
+                case 'links':
+                    await loadUserLinks();
+                    break;
             }
         });
     });
@@ -623,6 +631,131 @@ window.addEventListener('resize', () => {
     updateDailyHeaderOrientation();
 });
 
+// Load User Links (새 링크 탭)
+async function loadUserLinks() {
+    try {
+        setLoading(true);
+        const client = initSupabase();
+        
+        const monthFilter = getElValue('linksMonth', '');
+        const emailFilter = getElValue('linksEmailFilter', '').toLowerCase();
+        
+        // 월별 링크 그룹 조회
+        let query = client
+            .from('user_invite_links')
+            .select('*')
+            .order('first_used_at', { ascending: false });
+            
+        if (emailFilter) {
+            query = query.ilike('email', `%${emailFilter}%`);
+        }
+        
+        if (monthFilter) {
+            // date input에서 받은 날짜를 월 단위로 처리
+            const date = new Date(monthFilter);
+            const year = date.getFullYear();
+            const month = date.getMonth() + 1;
+            const startDate = `${year}-${String(month).padStart(2, '0')}-01`;
+            const endDate = new Date(year, month, 0).toISOString().split('T')[0];
+            query = query.gte('first_used_at', startDate).lte('first_used_at', endDate);
+        }
+        
+        const { data, error } = await query;
+        if (error) throw error;
+        
+        const container = el('linksContainer');
+        
+        if (!data || data.length === 0) {
+            container.innerHTML = '<div style="text-align:center;padding:40px;color:#6b7280;">링크 데이터가 없습니다</div>';
+            return;
+        }
+        
+        // 월별/사용자별로 그룹화
+        const grouped = {};
+        data.forEach(link => {
+            const date = new Date(link.first_used_at);
+            const monthKey = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}`;
+            
+            if (!grouped[monthKey]) {
+                grouped[monthKey] = {};
+            }
+            if (!grouped[monthKey][link.email]) {
+                grouped[monthKey][link.email] = [];
+            }
+            grouped[monthKey][link.email].push(link);
+        });
+        
+        // HTML 생성
+        let html = '';
+        Object.entries(grouped)
+            .sort((a, b) => b[0].localeCompare(a[0])) // 최신 월부터
+            .forEach(([month, users]) => {
+                const totalLinks = Object.values(users).flat().length;
+                const [year, monthNum] = month.split('-');
+                const monthName = new Date(year, parseInt(monthNum) - 1).toLocaleDateString('ko-KR', { year: 'numeric', month: 'long' });
+                
+                html += `
+                    <div class="link-month-group">
+                        <div class="link-month-header">
+                            <span class="link-month-title">📅 ${monthName}</span>
+                            <span class="link-month-count">${totalLinks}개</span>
+                        </div>
+                        <div class="link-users">
+                `;
+                
+                Object.entries(users)
+                    .sort((a, b) => a[0].localeCompare(b[0])) // 이메일 알파벳순
+                    .forEach(([email, links]) => {
+                        const userId = email.replace(/[@.]/g, '_');
+                        html += `
+                            <div class="link-user-card" data-user="${userId}">
+                                <div class="link-user-header" onclick="toggleLinkCard(this)">
+                                    <span class="link-user-email">${email}</span>
+                                    <div class="link-user-stats">
+                                        <span class="link-count-badge">${links.length}개 링크</span>
+                                        <svg class="link-expand-icon" viewBox="0 0 20 20" fill="none">
+                                            <path d="M7 10l5 5 5-5" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+                                        </svg>
+                                    </div>
+                                </div>
+                                <div class="link-user-details">
+                                    <div class="link-list">
+                                        ${links.sort((a, b) => a.group_name.localeCompare(b.group_name))
+                                            .map(link => `
+                                                <div class="link-item">
+                                                    <a href="${link.invite_link}" target="_blank" class="link-url">${link.invite_link}</a>
+                                                    <span class="link-title">${link.group_name}</span>
+                                                </div>
+                                            `).join('')}
+                                    </div>
+                                </div>
+                            </div>
+                        `;
+                    });
+                
+                html += `
+                        </div>
+                    </div>
+                `;
+            });
+        
+        container.innerHTML = html;
+        
+    } catch (error) {
+        console.error('Links error:', error);
+        const container = el('linksContainer');
+        container.innerHTML = '<div style="text-align:center;padding:40px;color:#ef4444;">링크 데이터 로드 실패</div>';
+    } finally {
+        setLoading(false);
+    }
+}
+
+// 링크 카드 토글
+function toggleLinkCard(header) {
+    const card = header.parentElement;
+    card.classList.toggle('expanded');
+}
+
 // Initialize
 document.addEventListener('DOMContentLoaded', async () => {
     // Check saved email
@@ -658,6 +791,11 @@ document.addEventListener('DOMContentLoaded', async () => {
     addEvent('activityAction', 'change', loadActivityLog);
     addEvent('activityDateStart', 'change', loadActivityLog);
     addEvent('activityDateEnd', 'change', loadActivityLog);
+    
+    // Links tab events
+    addEvent('linksSearchBtn', 'click', loadUserLinks);
+    addEvent('linksMonth', 'change', loadUserLinks);
+    addEvent('linksEmailFilter', 'input', debounce(loadUserLinks, 500));
     
     // Set default dates for all date inputs
     const today = new Date();
