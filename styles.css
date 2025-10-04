@@ -839,18 +839,23 @@ body {
         table-layout: fixed;
     }
     
-    /* 세로 텍스트 헤더 (모바일 전용) */
+    /* 세로 텍스트 헤더 (모바일 전용)
+       - webkit/IE 프리픽스 먼저
+       - 표준 writing-mode: vertical-rl (위->아래)
+       - transform 제거 (거꾸로 보이는 문제 해결)
+    */
     .data-table thead th {
         -webkit-writing-mode: vertical-rl;
         -ms-writing-mode: tb-rl;
-        writing-mode: vertical-rl;  /* 표준 속성은 마지막에 */
-        height: 80px;
-        padding: 8px 2px;
+        writing-mode: vertical-rl;
+        text-orientation: upright; /* 한글/숫자 자연스럽게 */
+        height: 96px;
+        padding: 6px 2px;
         font-size: 10px;
+        line-height: 1;
         white-space: nowrap;
         vertical-align: bottom;
         text-align: center;
-        transform: rotate(180deg);  /* 텍스트 방향 조정 */
     }
     
     /* 날짜와 이메일은 가로 유지 */
