@@ -1,142 +1,237 @@
 <!doctype html>
 <html lang="ko">
-  <head>
+<head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <title>Dashboard</title>
+    <title>Telo Dashboard</title>
     <meta http-equiv="Referrer-Policy" content="no-referrer" />
-    <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' https://cdn.jsdelivr.net https://cdn.jsdelivr.net/npm/@supabase; connect-src https://shwvdqauqnvtodmismjv.supabase.co; style-src 'self' 'unsafe-inline'; img-src 'self' data:;" />
-    <link rel="stylesheet" href="styles.css?v=2" />
-    <!-- Use UMD build to expose window.supabase for createClient() -->
+    <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' https://cdn.jsdelivr.net 'unsafe-inline'; connect-src https://shwvdqauqnvtodmismjv.supabase.co; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com; img-src 'self' data:;" />
+    
+    <!-- Google Fonts -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    
+    <link rel="stylesheet" href="styles.css?v=3" />
+    
+    <!-- Supabase Client -->
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.js"></script>
-    <script defer src="app.js?v=11"></script>
-  </head>
-  <body>
-    <div class="container">
-      <header class="header">
-        <h1 class="title">Dashboard</h1>
-      </header>
-      <div class="small muted" id="health"></div>
-
-      <section id="loginCard" class="card">
-        <div class="field">
-          <label>Email</label>
-          <input id="email" type="email" placeholder="user@example.com" />
-        </div>
-        <div class="field">
-          <label>Password</label>
-          <input id="password" type="password" placeholder="••••••••" />
-        </div>
-        <button id="btnLogin" class="btn primary">로그인</button>
-        <div class="row small between">
-          <span id="loginStatus" class="muted"></span>
-          <span id="err" class="error"></span>
-        </div>
-      </section>
-
-      <section id="viewer" class="hidden">
-        <div class="card">
-          <div class="row gap filters">
-            <div class="field">
-              <label>Username</label>
-              <input id="filterUsername" type="text" placeholder="검색어(포함)" />
+    <!-- Chart.js for visualizations -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+    
+    <script defer src="app.js?v=3"></script>
+</head>
+<body>
+    <!-- Login Screen -->
+    <div id="loginScreen" class="login-screen">
+        <div class="login-container">
+            <div class="login-card">
+                <h1 class="login-title">Telo Dashboard</h1>
+                <p class="login-subtitle">관리자 로그인</p>
+                
+                <div class="form-group">
+                    <label for="email">이메일</label>
+                    <input id="email" type="email" placeholder="admin@example.com" autocomplete="email" required aria-required="true" />
+                </div>
+                
+                <div class="form-group">
+                    <label for="password">비밀번호</label>
+                    <input id="password" type="password" placeholder="••••••••" autocomplete="current-password" required aria-required="true" />
+                </div>
+                
+                <button id="btnLogin" class="btn-primary">로그인</button>
+                
+                <div id="loginError" class="error-msg"></div>
             </div>
-            <div class="field">
-              <label for="filterStart">Start</label>
-              <input id="filterStart" name="filterStart" type="date" aria-label="Start date (KST)" />
-            </div>
-            <div class="field">
-              <label for="filterEnd">End</label>
-              <input id="filterEnd" name="filterEnd" type="date" aria-label="End date (KST)" />
-            </div>
-            <div class="field">
-              <label for="pageSize">Page size</label>
-              <input id="pageSize" name="pageSize" type="number" min="10" max="500" value="200" aria-label="Page size" />
-            </div>
-          </div>
-          <div class="row gap">
-            <button id="btnLoadRuns" class="btn">프로그램 실행 로그 조회</button>
-            <button id="btnLoadStatsDaily" class="btn">일별 통계 조회</button>
-            <button id="btnLoadStatsMonthly" class="btn">월별 통계 조회</button>
-          </div>
-          <div class="row end small">
-            <div class="row gap pager">
-              <span id="pageInfo" class="page-info"></span>
-              <button id="prevPage" class="btn">Prev</button>
-              <button id="nextPage" class="btn">Next</button>
-            </div>
-          </div>
         </div>
-
-        <div class="card">
-          <div class="table-wrap">
-            <table id="tblRuns" class="table">
-              <thead>
-                <tr>
-                  <th class="sortable" data-col="username" aria-sort="none" tabindex="0">username</th>
-                  <th class="sortable" data-col="occurred_at_kst" aria-sort="none" tabindex="0">occurred_at_kst</th>
-                  <th class="sortable" data-col="ip_address" aria-sort="none" tabindex="0">ip_address</th>
-                </tr>
-              </thead>
-              <tbody></tbody>
-            </table>
-          </div>
-        </div>
-
-        <div class="card">
-          <div class="table-wrap">
-            <table id="tblStatsDaily" class="table">
-              <thead>
-                <tr>
-                  <th class="sortable" data-col="username" aria-sort="none" tabindex="0">username</th>
-                  <th class="sortable" data-col="day_kst" aria-sort="none" tabindex="0">day_kst</th>
-                  <th class="sortable" data-col="dm_count" aria-sort="none" tabindex="0">dm_count</th>
-                  <th class="sortable" data-col="invite_success" aria-sort="none" tabindex="0">invite_success</th>
-                  <th class="sortable" data-col="invite_failed" aria-sort="none" tabindex="0">invite_failed</th>
-                  <th class="sortable" data-col="contact_total" aria-sort="none" tabindex="0">contact_total</th>
-                  <th class="sortable" data-col="contact_success" aria-sort="none" tabindex="0">contact_success</th>
-                  <th class="sortable" data-col="contact_failed" aria-sort="none" tabindex="0">contact_failed</th>
-                </tr>
-              </thead>
-              <tbody></tbody>
-            </table>
-          </div>
-        </div>
-
-        <div class="card">
-          <div class="table-wrap">
-            <table id="tblStatsMonthly" class="table">
-              <thead>
-                <tr>
-                  <th class="sortable" data-col="year" aria-sort="none" tabindex="0">year</th>
-                  <th class="sortable" data-col="month" aria-sort="none" tabindex="0">month</th>
-                  <th class="sortable" data-col="username" aria-sort="none" tabindex="0">username</th>
-                  <th class="sortable" data-col="dm_count" aria-sort="none" tabindex="0">dm_count</th>
-                  <th class="sortable" data-col="invite_success" aria-sort="none" tabindex="0">invite_success</th>
-                  <th class="sortable" data-col="invite_failed" aria-sort="none" tabindex="0">invite_failed</th>
-                  <th class="sortable" data-col="contact_total" aria-sort="none" tabindex="0">contact_total</th>
-                  <th class="sortable" data-col="contact_success" aria-sort="none" tabindex="0">contact_success</th>
-                  <th class="sortable" data-col="contact_failed" aria-sort="none" tabindex="0">contact_failed</th>
-                </tr>
-              </thead>
-              <tbody></tbody>
-            </table>
-          </div>
-        </div>
-        
-      </section>
-
-      <footer class="footer">
-        <span class="muted">조회 버튼 눌러야 최신 정보로 업데이트 됨</span>
-      </footer>
-      
-      <!-- Loading Spinner Overlay -->
-      <div id="spinner" class="spinner hidden" role="status" aria-live="polite">
-        <div class="loader"></div>
-        <div class="small muted">Loading...</div>
-      </div>
     </div>
-  </body>
-  </html>
 
+    <!-- Main Dashboard -->
+    <div id="dashboard" class="dashboard hidden">
+        <!-- Header -->
+        <header class="header">
+            <div class="header-content">
+                <h1 class="header-title">Telo Dashboard</h1>
+                <div class="header-actions">
+                    <span id="currentUser" class="user-info"></span>
+                    <button id="btnLogout" class="btn-ghost">로그아웃</button>
+                </div>
+            </div>
+        </header>
 
+        <!-- Navigation Tabs -->
+        <nav class="nav-tabs">
+            <button class="tab-btn active" data-tab="overview">
+                <svg class="tab-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <rect x="3" y="3" width="7" height="7"/>
+                    <rect x="14" y="3" width="7" height="7"/>
+                    <rect x="3" y="14" width="7" height="7"/>
+                    <rect x="14" y="14" width="7" height="7"/>
+                </svg>
+                개요
+            </button>
+            <button class="tab-btn" data-tab="monthly">
+                <svg class="tab-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <path d="M3 12h18m-9-9v18"/>
+                </svg>
+                월별 통계
+            </button>
+            <button class="tab-btn" data-tab="daily">
+                <svg class="tab-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <rect x="3" y="4" width="18" height="16" rx="2"/>
+                    <line x1="3" y1="10" x2="21" y2="10"/>
+                </svg>
+                일별 통계
+            </button>
+            <button class="tab-btn" data-tab="activity">
+                <svg class="tab-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <path d="M12 2v20M2 12h20"/>
+                </svg>
+                접속 기록
+            </button>
+        </nav>
+
+        <!-- Tab Content -->
+        <main class="main-content">
+            <!-- Overview Tab -->
+            <div id="overview" class="tab-content active">
+                <!-- Summary Cards -->
+                <div class="stats-grid">
+                    <div class="stat-card">
+                        <div class="stat-header">
+                            <span class="stat-label">총 사용자</span>
+                            <svg class="stat-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor">
+                                <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/>
+                                <circle cx="9" cy="7" r="4"/>
+                                <path d="M23 21v-2a4 4 0 0 0-3-3.87"/>
+                                <path d="M16 3.13a4 4 0 0 1 0 7.75"/>
+                            </svg>
+                        </div>
+                        <div class="stat-value" id="totalUsers">-</div>
+                    </div>
+                    
+                    <div class="stat-card">
+                        <div class="stat-header">
+                            <span class="stat-label">오늘 활성 사용자</span>
+                            <svg class="stat-icon green" viewBox="0 0 24 24" fill="none" stroke="currentColor">
+                                <polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/>
+                            </svg>
+                        </div>
+                        <div class="stat-value" id="todayActive">-</div>
+                    </div>
+                    
+                    <div class="stat-card">
+                        <div class="stat-header">
+                            <span class="stat-label">이번 달 초대 성공</span>
+                            <svg class="stat-icon blue" viewBox="0 0 24 24" fill="none" stroke="currentColor">
+                                <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/>
+                                <polyline points="22 4 12 14.01 9 11.01"/>
+                            </svg>
+                        </div>
+                        <div class="stat-value" id="monthInvites">-</div>
+                    </div>
+                    
+                    <div class="stat-card">
+                        <div class="stat-header">
+                            <span class="stat-label">이번 달 DM 전송</span>
+                            <svg class="stat-icon purple" viewBox="0 0 24 24" fill="none" stroke="currentColor">
+                                <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/>
+                            </svg>
+                        </div>
+                        <div class="stat-value" id="monthDMs">-</div>
+                    </div>
+                </div>
+
+                <!-- Charts -->
+                <div class="chart-grid">
+                    <div class="chart-card">
+                        <h3 class="chart-title">최근 7일 활동 추이</h3>
+                        <canvas id="activityChart"></canvas>
+                    </div>
+                    
+                    <div class="chart-card">
+                        <h3 class="chart-title">상위 활성 사용자</h3>
+                        <div id="topUsersList" class="top-users-list"></div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Monthly Stats Tab -->
+            <div id="monthly" class="tab-content">
+                <div class="content-header">
+                    <h2>월별 통계</h2>
+                    <div class="filter-group">
+                        <select id="monthlyYear" class="filter-select" aria-label="연도 선택" title="연도 선택">
+                            <option value="2025">2025년</option>
+                            <option value="2024">2024년</option>
+                        </select>
+                        <input id="monthlySearch" type="text" placeholder="이메일 검색..." class="filter-input" aria-label="이메일 검색" />
+                    </div>
+                </div>
+                
+                <div class="data-grid" id="monthlyGrid">
+                    <!-- Monthly cards will be inserted here -->
+                </div>
+            </div>
+
+            <!-- Daily Stats Tab -->
+            <div id="daily" class="tab-content">
+                <div class="content-header">
+                    <h2>일별 통계</h2>
+                    <div class="filter-group">
+                        <input id="dailyDateStart" type="date" class="filter-input" aria-label="시작 날짜" title="시작 날짜" />
+                        <span class="filter-separator">~</span>
+                        <input id="dailyDateEnd" type="date" class="filter-input" aria-label="종료 날짜" title="종료 날짜" />
+                        <input id="dailySearch" type="text" placeholder="이메일 검색..." class="filter-input" aria-label="이메일 검색" />
+                        <button id="btnDailyApply" class="btn-secondary">조회</button>
+                    </div>
+                </div>
+                
+                <div class="table-container">
+                    <table class="data-table" role="table" aria-label="일별 통계 테이블">
+                        <thead>
+                            <tr>
+                                <th scope="col">날짜</th>
+                                <th scope="col">이메일</th>
+                                <th scope="col">DM 전송</th>
+                                <th scope="col">초대 성공</th>
+                                <th scope="col">초대 실패</th>
+                                <th scope="col">연락처 처리</th>
+                                <th scope="col">연락처 성공</th>
+                            </tr>
+                        </thead>
+                        <tbody id="dailyTableBody">
+                            <!-- Rows will be inserted here -->
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+
+            <!-- Activity Log Tab -->
+            <div id="activity" class="tab-content">
+                <div class="content-header">
+                    <h2>접속 기록</h2>
+                    <div class="filter-group">
+                        <input id="activitySearch" type="text" placeholder="이메일 검색..." class="filter-input" aria-label="이메일 검색" />
+                        <select id="activityAction" class="filter-select" aria-label="활동 유형 필터" title="활동 유형 선택">
+                            <option value="">모든 활동</option>
+                            <option value="login">로그인</option>
+                            <option value="logout">로그아웃</option>
+                        </select>
+                        <button id="btnActivityRefresh" class="btn-secondary">새로고침</button>
+                    </div>
+                </div>
+                
+                <div class="activity-timeline" id="activityTimeline">
+                    <!-- Activity items will be inserted here -->
+                </div>
+            </div>
+        </main>
+    </div>
+
+    <!-- Loading Overlay -->
+    <div id="loadingOverlay" class="loading-overlay hidden">
+        <div class="spinner"></div>
+    </div>
+</body>
+</html>
