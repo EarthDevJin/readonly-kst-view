@@ -570,6 +570,34 @@ body {
     color: var(--text-muted);
 }
 
+/* Filter Separator */
+.filter-separator {
+    color: var(--text-secondary);
+    padding: 0 8px;
+    align-self: center;
+}
+
+/* Date Divider */
+.date-divider {
+    display: flex;
+    align-items: center;
+    gap: 16px;
+    margin: 24px 0 16px;
+    color: var(--text-secondary);
+    font-size: 12px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 1px;
+}
+
+.date-divider::before,
+.date-divider::after {
+    content: '';
+    flex: 1;
+    height: 1px;
+    background: var(--border-color);
+}
+
 /* Top Users List */
 .top-users-list {
     display: flex;
@@ -667,6 +695,96 @@ body {
     background: var(--border-light);
 }
 
+/* Mobile Scroll Guide */
+.mobile-scroll-guide {
+    position: fixed;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    z-index: 1000;
+    pointer-events: none;
+    animation: fadeInOut 3s ease-in-out;
+}
+
+.guide-content {
+    background: rgba(0, 0, 0, 0.8);
+    -webkit-backdrop-filter: blur(10px);
+    backdrop-filter: blur(10px);
+    border: 2px solid var(--accent-blue);
+    border-radius: 16px;
+    padding: 20px 30px;
+    text-align: center;
+    box-shadow: 0 10px 40px rgba(59, 130, 246, 0.3);
+}
+
+.guide-icon {
+    font-size: 32px;
+    margin-bottom: 10px;
+    animation: bounce 1s infinite;
+}
+
+.guide-text {
+    color: var(--text-primary);
+    font-size: 14px;
+    font-weight: 500;
+    margin-bottom: 10px;
+}
+
+.guide-arrow {
+    font-size: 24px;
+    animation: arrowDown 1s infinite;
+}
+
+@keyframes fadeInOut {
+    0% { opacity: 0; }
+    20% { opacity: 1; }
+    80% { opacity: 1; }
+    100% { opacity: 0; }
+}
+
+@keyframes bounce {
+    0%, 100% { transform: translateY(0); }
+    50% { transform: translateY(-10px); }
+}
+
+@keyframes arrowDown {
+    0%, 100% { transform: translateY(0); }
+    50% { transform: translateY(5px); }
+}
+
+/* Touch feedback for mobile */
+@media (max-width: 768px) {
+    .data-card,
+    .stat-card,
+    .chart-card {
+        position: relative;
+        overflow: hidden;
+    }
+    
+    .data-card::after,
+    .stat-card::after,
+    .chart-card::after {
+        content: '';
+        position: absolute;
+        top: 50%;
+        left: 50%;
+        width: 0;
+        height: 0;
+        border-radius: 50%;
+        background: rgba(59, 130, 246, 0.2);
+        transform: translate(-50%, -50%);
+        transition: width 0.6s, height 0.6s;
+        pointer-events: none;
+    }
+    
+    .data-card:active::after,
+    .stat-card:active::after,
+    .chart-card:active::after {
+        width: 300px;
+        height: 300px;
+    }
+}
+
 /* Responsive */
 @media (max-width: 768px) {
     .chart-grid {
@@ -692,5 +810,11 @@ body {
     
     .main-content {
         padding: 16px;
+    }
+    
+    /* Mobile scroll indicator */
+    .data-card,
+    .stat-card {
+        cursor: pointer;
     }
 }

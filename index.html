@@ -12,14 +12,14 @@
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
     
-    <link rel="stylesheet" href="styles.css?v=6" />
+    <link rel="stylesheet" href="styles.css?v=7" />
     
     <!-- Supabase Client -->
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.js"></script>
     <!-- Chart.js for visualizations -->
     <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
     
-    <script defer src="app.js?v=6"></script>
+    <script defer src="app.js?v=7"></script>
 </head>
 <body>
     <!-- Login Screen -->
@@ -225,13 +225,16 @@
                 <div class="content-header">
                     <h2>접속 기록</h2>
                     <div class="filter-group">
+                        <input id="activityDateStart" type="date" class="filter-input" aria-label="시작 날짜" title="시작 날짜" />
+                        <span class="filter-separator">~</span>
+                        <input id="activityDateEnd" type="date" class="filter-input" aria-label="종료 날짜" title="종료 날짜" />
                         <input id="activitySearch" type="text" placeholder="이메일 검색..." class="filter-input" aria-label="이메일 검색" />
                         <select id="activityAction" class="filter-select" aria-label="활동 유형 필터" title="활동 유형 선택">
                             <option value="">모든 활동</option>
                             <option value="login">로그인</option>
                             <option value="logout">로그아웃</option>
                         </select>
-                        <button id="btnActivityRefresh" class="btn-secondary">새로고침</button>
+                        <button id="btnActivityRefresh" class="btn-secondary">조회</button>
                     </div>
                 </div>
                 
@@ -245,6 +248,15 @@
     <!-- Loading Overlay -->
     <div id="loadingOverlay" class="loading-overlay hidden">
         <div class="spinner"></div>
+    </div>
+    
+    <!-- Mobile Scroll Guide -->
+    <div id="mobileScrollGuide" class="mobile-scroll-guide hidden">
+        <div class="guide-content">
+            <div class="guide-icon">👆</div>
+            <div class="guide-text">카드를 터치하고 스크롤하세요</div>
+            <div class="guide-arrow">⬇️</div>
+        </div>
     </div>
 </body>
 </html>
