@@ -131,13 +131,19 @@ async function loadOverview() {
         setLoading(true);
         const client = initSupabase();
         
+        console.log('[Overview] Loading monthly statistics...');
+        
         // Get monthly statistics for summary
         const { data: monthlyData, error: monthlyError } = await client
             .from('vw_device_stats_monthly_kst')
             .select('*');
             
+        console.log('[Overview] Monthly data:', monthlyData);
+        console.log('[Overview] Monthly error:', monthlyError);
+            
         if (monthlyError) {
             console.error('Monthly data error:', monthlyError);
+            throw monthlyError;
         }
         
         // Calculate totals
@@ -155,12 +161,17 @@ async function loadOverview() {
         
         // Get today's active users from login history
         const today = new Date().toISOString().split('T')[0];
-        const { data: todayData } = await client
+        console.log('[Overview] Today date:', today);
+        
+        const { data: todayData, error: todayError } = await client
             .from('vw_login_history_kst')
             .select('email')
             .eq('action', 'login')
             .gte('created_at_kst', `${today} 00:00:00`)
             .lte('created_at_kst', `${today} 23:59:59`);
+        
+        console.log('[Overview] Today data:', todayData);
+        console.log('[Overview] Today error:', todayError);
             
         const todayActive = new Set(todayData?.map(d => d.email) || []).size;
         
@@ -330,6 +341,8 @@ async function loadMonthlyStats() {
         const year = getElValue('monthlyYear', '2025');
         const search = getElValue('monthlySearch', '').toLowerCase();
         
+        console.log('[Monthly] Loading stats for year:', year, 'search:', search);
+        
         let query = client
             .from('vw_device_stats_monthly_kst')
             .select('*')
@@ -341,6 +354,10 @@ async function loadMonthlyStats() {
         }
         
         const { data, error } = await query;
+        
+        console.log('[Monthly] Data:', data);
+        console.log('[Monthly] Error:', error);
+        
         if (error) throw error;
         
         const container = el('monthlyGrid');
@@ -413,7 +430,7 @@ async function loadDailyStats() {
         }
         
         const { data, error } = await query;
-        if (error) throw error;
+      if (error) throw error;
         
         const tbody = el('dailyTableBody');
         
@@ -452,6 +469,8 @@ async function loadActivityLog() {
         const search = getElValue('activitySearch', '').toLowerCase();
         const action = getElValue('activityAction', '');
         
+        console.log('[Activity] Loading login history, search:', search, 'action:', action);
+        
         let query = client
             .from('vw_login_history_kst')
             .select('email, action, created_at_kst_str, ip_address')
@@ -466,6 +485,10 @@ async function loadActivityLog() {
         }
         
         const { data, error } = await query;
+        
+        console.log('[Activity] Data:', data);
+        console.log('[Activity] Error:', error);
+        
         if (error) throw error;
         
         const container = el('activityTimeline');
