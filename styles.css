@@ -838,6 +838,21 @@ body {
         font-size: 11px;
         table-layout: fixed;
     }
+
+    /* programmatic vertical header helper */
+    .data-table thead th.vertical {
+        padding: 4px 2px;
+    }
+    .data-table thead th .vh {
+        display: inline-flex;
+        flex-direction: column;
+        align-items: center;
+        gap: 2px;
+        line-height: 1;
+    }
+    .data-table thead th .vh span {
+        display: block;
+    }
     
     /* 세로 텍스트 헤더 (모바일 전용)
        - webkit/IE 프리픽스 먼저

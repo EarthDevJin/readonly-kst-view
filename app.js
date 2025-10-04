@@ -574,12 +574,47 @@ function setupTabs() {
                     break;
                 case 'daily':
                     await loadDailyStats();
+                    updateDailyHeaderOrientation();
                     break;
                 case 'activity':
                     await loadActivityLog();
                     break;
             }
         });
+    });
+}
+
+// Daily table headers: verticalize on mobile only
+function updateDailyHeaderOrientation() {
+    const isMobile = window.innerWidth <= 768 || /Mobi|Android/i.test(navigator.userAgent);
+    const headers = document.querySelectorAll('#daily table.data-table thead th');
+    if (!headers || headers.length === 0) return;
+
+    headers.forEach((th, index) => {
+        // Keep first two columns (날짜, 이메일) horizontal
+        if (index < 2) {
+            if (th.dataset.originalText) {
+                th.textContent = th.dataset.originalText;
+                th.classList.remove('vertical');
+            }
+            return;
+        }
+
+        const original = th.dataset.originalText || th.textContent.trim();
+        th.dataset.originalText = original;
+
+        if (isMobile) {
+            const verticalHtml = original
+                .replace(/\s+/g, '')
+                .split('')
+                .map((ch) => `<span>${ch}</span>`) // one char per line
+                .join('');
+            th.innerHTML = `<span class="vh">${verticalHtml}</span>`;
+            th.classList.add('vertical');
+        } else {
+            th.textContent = original;
+            th.classList.remove('vertical');
+        }
     });
 }
 
@@ -641,6 +676,8 @@ document.addEventListener('DOMContentLoaded', async () => {
     
     // Setup tabs
     setupTabs();
+    // Ensure daily header orientation on first render (in case daily is default visible)
+    updateDailyHeaderOrientation();
     
     // Setup mobile scroll guide
     setupMobileScrollGuide();
