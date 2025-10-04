@@ -1,4 +1,4 @@
-// Telo Dashboard - Modern UI/UX
+// Telo Dashboard - Modern UI (Updated Version)
 let supabase = null;
 let currentUser = null;
 let chartInstance = null;
@@ -70,7 +70,7 @@ async function login() {
             password
         });
         
-    if (error) throw error;
+        if (error) throw error;
         
         currentUser = data.user;
         localStorage.setItem('userEmail', email);
@@ -131,21 +131,28 @@ async function loadOverview() {
         setLoading(true);
         const client = initSupabase();
         
-        // Get summary statistics
-        const { data: summary, error: summaryError } = await client
-            .from('vw_stats_summary')
+        // Get monthly statistics for summary
+        const { data: monthlyData, error: monthlyError } = await client
+            .from('vw_device_stats_monthly_kst')
             .select('*');
             
-        if (summaryError) throw summaryError;
+        if (monthlyError) {
+            console.error('Monthly data error:', monthlyError);
+        }
         
         // Calculate totals
-        const totalUsers = summary ? summary.length : 0;
-        const monthTotal = summary ? summary.reduce((acc, row) => ({
-            dm: acc.dm + (row.total_dm || 0),
-            invites: acc.invites + (row.total_invite_success || 0)
-        }), { dm: 0, invites: 0 }) : { dm: 0, invites: 0 };
+        const totalUsers = monthlyData ? [...new Set(monthlyData.map(d => d.email))].length : 0;
+        const currentMonth = new Date().getMonth() + 1;
+        const currentYear = new Date().getFullYear();
         
-        // Get today's active users
+        const monthTotal = monthlyData ? monthlyData
+            .filter(d => d.month === currentMonth && d.year === currentYear)
+            .reduce((acc, row) => ({
+                dm: acc.dm + (row.dm_count || 0),
+                invites: acc.invites + (row.invite_success || 0)
+            }), { dm: 0, invites: 0 }) : { dm: 0, invites: 0 };
+        
+        // Get today's active users from login history
         const today = new Date().toISOString().split('T')[0];
         const { data: todayData } = await client
             .from('vw_login_history_kst')
@@ -166,7 +173,7 @@ async function loadOverview() {
         await loadActivityChart();
         
         // Load top users
-        loadTopUsers(summary);
+        loadTopUsers(monthlyData);
         
     } catch (error) {
         console.error('Overview load error:', error);
@@ -282,9 +289,22 @@ async function loadActivityChart() {
 }
 
 // Load Top Users
-function loadTopUsers(summary) {
-    const topUsers = (summary || [])
-        .sort((a, b) => (b.total_invite_success || 0) - (a.total_invite_success || 0))
+function loadTopUsers(monthlyData) {
+    if (!monthlyData) return;
+    
+    // Aggregate by email
+    const userTotals = {};
+    monthlyData.forEach(row => {
+        if (!userTotals[row.email]) {
+            userTotals[row.email] = 0;
+        }
+        userTotals[row.email] += (row.invite_success || 0);
+    });
+    
+    // Sort and get top 5
+    const topUsers = Object.entries(userTotals)
+        .map(([email, total]) => ({ email, total }))
+        .sort((a, b) => b.total - a.total)
         .slice(0, 5);
         
     const container = el('topUsersList');
@@ -294,7 +314,7 @@ function loadTopUsers(summary) {
                 <div class="top-user-rank">${index + 1}</div>
                 <div class="top-user-email">${user.email}</div>
             </div>
-            <div class="top-user-score">${formatNumber(user.total_invite_success)}</div>
+            <div class="top-user-score">${formatNumber(user.total)}</div>
         </div>
     `).join('');
 }
@@ -311,7 +331,7 @@ async function loadMonthlyStats() {
         let query = client
             .from('vw_device_stats_monthly_kst')
             .select('*')
-            .eq('year', year)
+            .eq('year', parseInt(year))
             .order('month', { ascending: false });
             
         if (search) {
@@ -319,10 +339,16 @@ async function loadMonthlyStats() {
         }
         
         const { data, error } = await query;
-    if (error) throw error;
+        if (error) throw error;
         
         const container = el('monthlyGrid');
-        container.innerHTML = (data || []).map(row => `
+        
+        if (!data || data.length === 0) {
+            container.innerHTML = '<div style="text-align:center;padding:40px;color:#6b7280;">데이터가 없습니다</div>';
+            return;
+        }
+        
+        container.innerHTML = data.map(row => `
             <div class="data-card">
                 <div class="data-card-header">
                     <div class="data-card-title">${row.email}</div>
@@ -351,7 +377,9 @@ async function loadMonthlyStats() {
         
     } catch (error) {
         console.error('Monthly stats error:', error);
-  } finally {
+        const container = el('monthlyGrid');
+        container.innerHTML = '<div style="text-align:center;padding:40px;color:#ef4444;">데이터 로드 실패</div>';
+    } finally {
         setLoading(false);
     }
 }
@@ -386,7 +414,13 @@ async function loadDailyStats() {
         if (error) throw error;
         
         const tbody = el('dailyTableBody');
-        tbody.innerHTML = (data || []).map(row => `
+        
+        if (!data || data.length === 0) {
+            tbody.innerHTML = '<tr><td colspan="7" style="text-align:center;color:#6b7280;">데이터가 없습니다</td></tr>';
+            return;
+        }
+        
+        tbody.innerHTML = data.map(row => `
             <tr>
                 <td>${row.day_kst}</td>
                 <td>${row.email}</td>
@@ -398,18 +432,16 @@ async function loadDailyStats() {
             </tr>
         `).join('');
         
-        if (!data || data.length === 0) {
-            tbody.innerHTML = '<tr><td colspan="7" style="text-align:center;color:#6b7280;">데이터가 없습니다</td></tr>';
-        }
-        
     } catch (error) {
         console.error('Daily stats error:', error);
+        const tbody = el('dailyTableBody');
+        tbody.innerHTML = '<tr><td colspan="7" style="text-align:center;color:#ef4444;">데이터 로드 실패</td></tr>';
     } finally {
         setLoading(false);
     }
 }
 
-// Load Activity Log
+// Load Activity Log (Login History)
 async function loadActivityLog() {
     try {
         setLoading(true);
@@ -432,10 +464,16 @@ async function loadActivityLog() {
         }
         
         const { data, error } = await query;
-      if (error) throw error;
+        if (error) throw error;
         
         const container = el('activityTimeline');
-        container.innerHTML = (data || []).map(row => `
+        
+        if (!data || data.length === 0) {
+            container.innerHTML = '<div style="text-align:center;padding:40px;color:#6b7280;">활동 기록이 없습니다</div>';
+            return;
+        }
+        
+        container.innerHTML = data.map(row => `
             <div class="activity-item">
                 <div class="activity-icon ${row.action}">
                     ${row.action === 'login' ? '→' : '←'}
@@ -451,12 +489,10 @@ async function loadActivityLog() {
             </div>
         `).join('');
         
-        if (!data || data.length === 0) {
-            container.innerHTML = '<div style="text-align:center;padding:40px;color:#6b7280;">활동 기록이 없습니다</div>';
-        }
-        
     } catch (error) {
         console.error('Activity log error:', error);
+        const container = el('activityTimeline');
+        container.innerHTML = '<div style="text-align:center;padding:40px;color:#ef4444;">데이터 로드 실패</div>';
     } finally {
         setLoading(false);
     }
