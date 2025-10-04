@@ -827,28 +827,72 @@ body {
         cursor: pointer;
     }
     
-    /* Table responsive - keep horizontal scroll */
+    /* Table responsive - vertical headers for mobile */
     .table-container {
-        overflow-x: auto;
-        -webkit-overflow-scrolling: touch;
+        overflow-x: visible;
         border-radius: 8px;
     }
     
     .data-table {
-        min-width: 600px;
+        width: 100%;
         font-size: 11px;
+        table-layout: fixed;
     }
     
-    .data-table th {
-        padding: 8px 4px;
-        font-size: 11px;
+    /* 세로 텍스트 헤더 (모바일 전용) */
+    .data-table thead th {
+        writing-mode: vertical-rl;
+        text-orientation: upright;
+        height: 100px;
+        padding: 4px 2px;
+        font-size: 10px;
         white-space: nowrap;
+        vertical-align: bottom;
+        letter-spacing: 1px;
+        line-height: 1;
     }
     
-    .data-table td {
-        padding: 8px 4px;
-        font-size: 11px;
-        white-space: nowrap;
+    /* 날짜와 이메일은 가로 유지 */
+    .data-table thead th:first-child,
+    .data-table thead th:nth-child(2) {
+        writing-mode: horizontal-tb;
+        text-orientation: mixed;
+        height: auto;
+        min-height: 50px;
+        padding: 4px;
+        letter-spacing: normal;
+        vertical-align: middle;
+        font-size: 10px;
+    }
+    
+    /* 컬럼 너비 비율 */
+    .data-table thead th:first-child {
+        width: 20%;
+    }
+    
+    .data-table thead th:nth-child(2) {
+        width: 25%;
+    }
+    
+    .data-table thead th:nth-child(n+3) {
+        width: 11%;
+    }
+    
+    /* 테이블 본문 */
+    .data-table tbody td {
+        padding: 6px 2px;
+        text-align: center;
+        font-size: 10px;
+        overflow: hidden;
+        text-overflow: ellipsis;
+    }
+    
+    .data-table tbody td:first-child,
+    .data-table tbody td:nth-child(2) {
+        text-align: left;
+        padding: 6px 4px;
+        font-size: 9px;
+        word-break: break-all;
     }
     
     .data-card {
